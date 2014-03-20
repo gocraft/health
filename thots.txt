@@ -1,0 +1,41 @@
+I want to a hierarchy of systems
+
+ - each controller endpoint is a system
+   - /api/v2/tickets/create_from_muggle
+     - successes per time period
+     - unhandled errors per time period
+     - validation errors per time period
+     - (i wonder if each system just has arbitrary metrics. Eg, invalid_params.title vs invalid_params.body)
+     - response time distribution
+       - measuring times of subcomponents would be cool. Arbitrary subtimers
+     - customer distribution (# customers per day?)
+     - I want to set bounds for each system. Eg:
+       - min successes/day
+       - max unhandled errors per day
+       - max validation errors per day
+       - max response time, max 99 percentile, etc
+ - Each job is also a system
+ - Other things can be systems
+   - MySQL
+     - qps
+     - udpates/sec
+     - slow queries
+     - # cxns
+ - we can group peer systems to form groups in a belongs_to manner
+   - eg, /api/v2/tickets/create_from_muggle belongs to {/api/v2, tickets}
+   - this is kind of just categorization. it allows a dashboard of a bunch of shit
+ - each system can depend on other systems
+   - eg, /api/v2/tickets/create_from_muggle depends on {mysql, redis, and jobs/ticket_counts}
+   - if a system calls into another system, it depends on that system.
+ - Consider memcached
+   - There's a couple systems involved in this
+     - metroid/memcached is memcached from metroid's perspective. Categorized by 'memcached'
+     - web33/memcached is the local instance of memcached on web33. Categorized by 'memcached/hosts'
+     - web32/memcached is the local instance of memcached on web32. Categorized by 'memcached/hosts'
+ - Hierarchical
+   - Categorizing something as "admin/tickets" also categorizates by admin
+ - a system named web33/memcached will auto categorize to web33
+ - TODO: what happens if a system and a category overlap?
+   - eg, system: "api/v2/tickets/create" defines category: "api/v2/tickets"
+   - what if we have a system "api/v2/tickets" as well?
+ - 

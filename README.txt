@@ -35,7 +35,7 @@ warningStream := stream.Tag("warning")
 stream := health.New(os.Stdout, "general").KeyValue("host", os.Hostname())
                                           .KeyValue("pid", os.Pid())
 
-
+{"tags": ["info", "gorp"], "host": "web27", "msg": "omg this is a msg"}
 
 // When logging, you can append extra adhoc k/v to log entries:
 // (eg, making substreams should be cheap)
@@ -71,3 +71,5 @@ health.HistogramFunc("foo.bar", func() {  } )
 health.Success()
 health.Error("my message")
 // Also, health automatically listens to anything tagged with "error"
+
+
