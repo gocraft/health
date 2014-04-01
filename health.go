@@ -9,7 +9,6 @@ import (
 type Kv map[string]interface{}
 
 type Stream struct {
-	Writer    io.Writer
 	KeyValues map[string]string
 }
 
@@ -18,6 +17,7 @@ type Job struct {
 	JobName            string
 	KeyValues          map[string]string
 	NanosecondsAtStart int64
+	// Thought: auto generate a job-id
 }
 
 func NewStream(writer io.Writer) *Stream {
