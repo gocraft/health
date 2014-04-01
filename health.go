@@ -1,14 +1,13 @@
 package health
 
 import (
-	"fmt"
 	"io"
 	"time"
 )
 
-type Kv map[string]interface{}
 
 type Stream struct {
+	Sinks []Sink
 	KeyValues map[string]string
 }
 
@@ -20,19 +19,20 @@ type Job struct {
 	// Thought: auto generate a job-id
 }
 
-func NewStream(writer io.Writer) *Stream {
-	return &Stream{
-		Writer: writer,
-	}
+func NewStream() *Stream {
+	return &Stream{}
 }
 
-func (s *Stream) KeyValue(key string, value interface{}) *Stream {
+func (s *Stream) AddLogfileWriterSink(writer io.Writer) *Stream {
+	s.Sinks = append(s.Sinks, &LogfileWriterSink{Writer: writer})
+	return s
+}
+
+func (s *Stream) KeyValue(key string, value string) *Stream {
 	if s.KeyValues == nil {
 		s.KeyValues = make(map[string]string)
 	}
-
-	s.KeyValues[key] = fmt.Sprint(value)
-
+	s.KeyValues[key] = value
 	return s
 }
 
@@ -45,31 +45,46 @@ func (s *Stream) Job(name string) *Job {
 	}
 }
 
-func (j *Job) KeyValue(key string, value interface{}) *Job {
+func (j *Job) KeyValue(key string, value string) *Job {
 	if j.KeyValues == nil {
 		j.KeyValues = make(map[string]string)
 	}
-
-	j.KeyValues[key] = fmt.Sprint(value)
-
+	j.KeyValues[key] = value
 	return j
 }
 
-func (j *Job) Event(name string, kvs ...Kv) {
-
+func (j *Job) Event(eventName string) {
+	for _, sink := range j.Stream.Sinks {
+		sink.EmitEvent(j.JobName, eventName, nil)
+	}
 }
 
-func (j *Job) Timing(name string, nanoseconds int64, kvs ...Kv) {
+func (j *Job) EventKv(eventName string, kvs map[string]string) {
+	for _, sink := range j.Stream.Sinks {
+		sink.EmitEvent(j.JobName, eventName, kvs)
+	}
+}
+
+func (j *Job) Timing(eventName string, nanoseconds int64) {
+	for _, sink := range j.Stream.Sinks {
+		sink.EmitTiming(j.JobName, eventName, nanoseconds, nil)
+	}
+}
+
+func (j *Job) TimingKv(eventName string, nanoseconds int64, kvs map[string]string) {
+	for _, sink := range j.Stream.Sinks {
+		sink.EmitTiming(j.JobName, eventName, nanoseconds, kvs)
+	}
 }
 
 func (j *Job) Success() {
-
+	j.Event("success")
 }
 
 func (j *Job) UnhandledError() {
-
+	j.Event("error")
 }
 
 func (j *Job) ValidationError() {
-	// TODO: unsure what arguments there are
+	j.Event("validation")
 }
