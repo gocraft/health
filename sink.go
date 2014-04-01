@@ -1,11 +1,11 @@
 package health
 
 import (
-	"io"
-	"fmt"
-	"time"
 	"bytes"
+	"fmt"
+	"io"
 	"sort"
+	"time"
 )
 
 type Sink interface {
@@ -44,26 +44,26 @@ func consistentSerializeMap(kvs map[string]string) string {
 	if len(kvs) == 0 {
 		return ""
 	}
-	
+
 	var keys []string
 	for k := range kvs {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	keysLenMinusOne := len(keys) - 1
-	
+
 	var b bytes.Buffer
-	
+
 	for i, k := range keys {
 		b.WriteString(k)
 		b.WriteRune(':')
 		b.WriteString(kvs[k])
-		
+
 		if i != keysLenMinusOne {
 			b.WriteRune(' ')
 		}
 	}
-	
+
 	return b.String()
 }
 
@@ -79,6 +79,6 @@ func formatNanoseconds(duration int64) string {
 	default:
 		durationUnits = "ns"
 	}
-	
+
 	return fmt.Sprintf("%d %s", duration, durationUnits)
 }
