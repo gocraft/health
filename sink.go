@@ -73,7 +73,7 @@ func formatNanoseconds(duration int64) string {
 	case duration > 2000000:
 		durationUnits = "ms"
 		duration /= 1000000
-	case duration > 1000:
+	case duration > 2000:
 		durationUnits = "μs"
 		duration /= 1000
 	default:
