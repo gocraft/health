@@ -19,6 +19,7 @@ type EventReceiver interface {
 type Stream struct {
 	Sinks     []Sink
 	KeyValues map[string]string
+	*Job
 }
 
 type Job struct {
@@ -30,7 +31,9 @@ type Job struct {
 }
 
 func NewStream() *Stream {
-	return &Stream{}
+	s := &Stream{}
+	s.Job = s.NewJob("general")
+	return s
 }
 
 func (s *Stream) AddLogfileWriterSink(writer io.Writer) *Stream {
@@ -47,7 +50,7 @@ func (s *Stream) KeyValue(key string, value string) *Stream {
 }
 
 // Returns a NEW Stream. NOTE: the job name will completely overwrite the
-func (s *Stream) Job(name string) *Job {
+func (s *Stream) NewJob(name string) *Job {
 	return &Job{
 		Stream:             s,
 		JobName:            name,
