@@ -15,6 +15,14 @@ type EventReceiver interface {
 	Timing(eventName string, nanoseconds int64)
 	TimingKv(eventName string, nanoseconds int64, kvs map[string]string)
 }
+// Thought: add
+// ErrorEvent(eventName string) error
+// and ErrorEventKv, (not sure about Timing as well)
+// So if a function has an error and wants to log it, they can do this:
+// if err != nil {
+// 	   return Stram.ErrorEventKv("bad_data", Kvs{"err": err})
+// }
+// Or, one could name it ErrorEvent(eventName string, err error) error, which would automatically add err as a kv thing and then return the error
 
 type Stream struct {
 	Sinks     []Sink
