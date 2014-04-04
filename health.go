@@ -34,8 +34,7 @@ type Job struct {
 	Stream             *Stream
 	JobName            string
 	KeyValues          map[string]string
-	NanosecondsAtStart int64
-	// Thought: auto generate a job-id
+	Start			   time.Time
 }
 
 func NewStream() *Stream {
@@ -60,9 +59,9 @@ func (s *Stream) KeyValue(key string, value string) *Stream {
 // Returns a NEW Stream. NOTE: the job name will completely overwrite the
 func (s *Stream) NewJob(name string) *Job {
 	return &Job{
-		Stream:             s,
-		JobName:            name,
-		NanosecondsAtStart: time.Now().UnixNano(),
+		Stream:  s,
+		JobName: name,
+		Start: 	    time.Now(),
 	}
 }
 
@@ -103,16 +102,29 @@ func (j *Job) TimingKv(eventName string, nanoseconds int64, kvs map[string]strin
 }
 
 func (j *Job) Success() {
-	j.Event("success")
+	j.Timing("success", time.Since(j.Start).Nanoseconds())
+}
+
+func (j *Job) SuccessKv(kvs map[string]string) {
+	j.TimingKv("success", time.Since(j.Start).Nanoseconds(), kvs)
 }
 
 func (j *Job) UnhandledError() {
-	j.Event("error")
+	j.Timing("error", time.Since(j.Start).Nanoseconds())
+}
+
+func (j *Job) UnhandledErrorKv(kvs map[string]string) {
+	j.TimingKv("error", time.Since(j.Start).Nanoseconds(), kvs)
 }
 
 func (j *Job) ValidationError() {
-	j.Event("validation")
+	j.Timing("validation", time.Since(j.Start).Nanoseconds())
 }
+
+func (j *Job) ValidationErrorKv(kvs map[string]string) {
+	j.TimingKv("validation", time.Since(j.Start).Nanoseconds(), kvs)
+}
+
 
 func (j *Job) mergedKeyValues(instanceKvs map[string]string) map[string]string {
 	var allKvs map[string]string
