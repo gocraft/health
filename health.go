@@ -12,8 +12,8 @@ type Kvs map[string]string
 type EventReceiver interface {
 	Event(eventName string)
 	EventKv(eventName string, kvs map[string]string)
-	EventErr(eventName, err error) error
-	EventErrKv(eventName, err error, kvs map[string]string) error
+	EventErr(eventName string, err error) error
+	EventErrKv(eventName string, err error, kvs map[string]string) error
 	Timing(eventName string, nanoseconds int64)
 	TimingKv(eventName string, nanoseconds int64, kvs map[string]string)
 }
