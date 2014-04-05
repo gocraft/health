@@ -12,6 +12,8 @@ type Kvs map[string]string
 type EventReceiver interface {
 	Event(eventName string)
 	EventKv(eventName string, kvs map[string]string)
+	EventErr(eventName, err error) error
+	EventErrKv(eventName, err error, kvs map[string]string) error
 	Timing(eventName string, nanoseconds int64)
 	TimingKv(eventName string, nanoseconds int64, kvs map[string]string)
 }
@@ -85,6 +87,32 @@ func (j *Job) EventKv(eventName string, kvs map[string]string) {
 	for _, sink := range j.Stream.Sinks {
 		sink.EmitEvent(j.JobName, eventName, allKvs)
 	}
+}
+
+func (j *Job) EventErr(eventName string, err error) error {
+	var kvs Kvs
+	if err != nil {
+		kvs = Kvs{"err": err.Error()}
+	}
+	allKvs := j.mergedKeyValues(kvs)
+	for _, sink := range j.Stream.Sinks {
+		sink.EmitEvent(j.JobName, eventName, allKvs)
+	}
+	return err
+}
+
+func (j *Job) EventErrKv(eventName string, err error, kvs map[string]string) error {
+	if kvs == nil {
+		kvs = make(Kvs)
+	}
+	if err != nil {
+		kvs["err"] = err.Error()
+	}
+	allKvs := j.mergedKeyValues(kvs)
+	for _, sink := range j.Stream.Sinks {
+		sink.EmitEvent(j.JobName, eventName, allKvs)
+	}
+	return err
 }
 
 func (j *Job) Timing(eventName string, nanoseconds int64) {
