@@ -153,6 +153,14 @@ func (j *Job) ValidationErrorKv(kvs map[string]string) {
 	j.TimingKv("validation", time.Since(j.Start).Nanoseconds(), kvs)
 }
 
+func (j *Job) JunkError() {
+	j.Timing("junk", time.Since(j.Start).Nanoseconds())
+}
+
+func (j *Job) JunkErrorKv(kvs map[string]string) {
+	j.TimingKv("junk", time.Since(j.Start).Nanoseconds(), kvs)
+}
+
 
 func (j *Job) mergedKeyValues(instanceKvs map[string]string) map[string]string {
 	var allKvs map[string]string
