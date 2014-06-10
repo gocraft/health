@@ -8,9 +8,21 @@ import (
 	"time"
 )
 
+type CompletionType int
+
+const (
+	Success CompletionType = iota
+	ValidationError
+	Panic
+	Error
+	Junk
+)
+
 type Sink interface {
 	EmitEvent(job string, event string, kvs map[string]string) error
+	EmitEventErr(job string, event string, err error, kvs map[string]string) error
 	EmitTiming(job string, event string, nanoseconds int64, kvs map[string]string) error
+	EmitJobCompletion(job string, kind CompletionType, nanoseconds int64, kvs map[string]string) error
 }
 
 // This sink writes bytes in a format that a human might like to read in a logfile

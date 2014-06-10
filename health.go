@@ -17,6 +17,7 @@ type EventReceiver interface {
 	Timing(eventName string, nanoseconds int64)
 	TimingKv(eventName string, nanoseconds int64, kvs map[string]string)
 }
+
 // Thought: add
 // ErrorEvent(eventName string) error
 // and ErrorEventKv, (not sure about Timing as well)
@@ -33,10 +34,10 @@ type Stream struct {
 }
 
 type Job struct {
-	Stream             *Stream
-	JobName            string
-	KeyValues          map[string]string
-	Start			   time.Time
+	Stream    *Stream
+	JobName   string
+	KeyValues map[string]string
+	Start     time.Time
 }
 
 func NewStream() *Stream {
@@ -63,7 +64,7 @@ func (s *Stream) NewJob(name string) *Job {
 	return &Job{
 		Stream:  s,
 		JobName: name,
-		Start: 	    time.Now(),
+		Start:   time.Now(),
 	}
 }
 
@@ -160,7 +161,6 @@ func (j *Job) JunkError() {
 func (j *Job) JunkErrorKv(kvs map[string]string) {
 	j.TimingKv("junk", time.Since(j.Start).Nanoseconds(), kvs)
 }
-
 
 func (j *Job) mergedKeyValues(instanceKvs map[string]string) map[string]string {
 	var allKvs map[string]string

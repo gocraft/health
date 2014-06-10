@@ -3,7 +3,10 @@ I want to a hierarchy of systems
  - each controller endpoint is a system
    - /api/v2/tickets/create_from_muggle
      - successes per time period
-     - unhandled errors per time period
+     - "unhandled" errors per time period
+       - in Go this is not natural. Pretty much everything is "handled".
+       - So the errors are like 'panic' vs validation vs error(wefuckedup) vs junk
+       - Determining 'junk' seems hard.
      - validation errors per time period
      - (i wonder if each system just has arbitrary metrics. Eg, invalid_params.title vs invalid_params.body)
      - response time distribution
@@ -38,4 +41,77 @@ I want to a hierarchy of systems
  - TODO: what happens if a system and a category overlap?
    - eg, system: "api/v2/tickets/create" defines category: "api/v2/tickets"
    - what if we have a system "api/v2/tickets" as well?
- - 
+
+
+---------
+
+ - Jobs: list them, sort by {count, success %, total time, avg/median response time})
+   - Diplay:
+     - count/breakdown of succes vs validation vs panic vs internal_error vs junk -- over time
+     - Total time over time
+     - min/max/avg, percentiles time over time
+   - show a list of events, errors, and timers that happen on this job -> click into them.
+ - Given an event:
+   - count over time
+   - If there are kvs, a sampling of some random ones
+ - Given an error event:
+   - count over time, broken out by error
+   - for each error, it's string.
+   - If there are kvs, a sampling of some random ones
+ - Given a timing
+   - {count, min, max, distribution} over time
+
+
+GET /health/jobs/:job
+{
+    name: "/api/v2/tickets/:id",
+    start: 1402282820,
+    end: 1402282830,
+    
+    totals: {
+        success: 0,
+        validation: 0,
+        panic: 0,
+        internal_error: 0,
+        junk: 0,
+    },
+    
+    
+}
+
+
+GET /health/data
+{
+    sets: [{
+        start: 1402282820,
+        end: 1402282830,
+        jobs: 23,
+        metrics: 173
+    }]
+}
+
+GET /health/data/1402282825  <- Epoch seconds
+{
+    start: 1402282820,
+    end: 1402282830,
+    jobs: [{...}, ...],
+    
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
