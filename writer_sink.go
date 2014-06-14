@@ -9,11 +9,19 @@ import (
 )
 
 // This sink writes bytes in a format that a human might like to read in a logfile
-type LogfileWriterSink struct {
-	Writer io.Writer
+// This can be used to log to Stdout:
+//   .AddLogfileWriterSink(os.Stdout)
+// And to a file:
+//   f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+//   .AddLogfileWriterSink(f)
+// And to syslog:
+//   w, err := syslog.New(LOG_INFO, "")
+//   .AddLogfileWriterSink(w)
+type WriterSink struct {
+	io.Writer
 }
 
-func (s *LogfileWriterSink) EmitEvent(job string, event string, kvs map[string]string) error {
+func (s *WriterSink) EmitEvent(job string, event string, kvs map[string]string) error {
 	var b bytes.Buffer
 	b.WriteRune('[')
 	b.WriteString(timestamp())
@@ -27,7 +35,7 @@ func (s *LogfileWriterSink) EmitEvent(job string, event string, kvs map[string]s
 	return err
 }
 
-func (s *LogfileWriterSink) EmitEventErr(job string, event string, inputErr error, kvs map[string]string) error {
+func (s *WriterSink) EmitEventErr(job string, event string, inputErr error, kvs map[string]string) error {
 	var b bytes.Buffer
 	b.WriteRune('[')
 	b.WriteString(timestamp())
@@ -43,7 +51,7 @@ func (s *LogfileWriterSink) EmitEventErr(job string, event string, inputErr erro
 	return err
 }
 
-func (s *LogfileWriterSink) EmitTiming(job string, event string, nanos int64, kvs map[string]string) error {
+func (s *WriterSink) EmitTiming(job string, event string, nanos int64, kvs map[string]string) error {
 	var b bytes.Buffer
 	b.WriteRune('[')
 	b.WriteString(timestamp())
@@ -59,7 +67,7 @@ func (s *LogfileWriterSink) EmitTiming(job string, event string, nanos int64, kv
 	return err
 }
 
-func (s *LogfileWriterSink) EmitJobCompletion(job string, kind CompletionType, nanos int64, kvs map[string]string) error {
+func (s *WriterSink) EmitJobCompletion(job string, kind CompletionType, nanos int64, kvs map[string]string) error {
 	var b bytes.Buffer
 	b.WriteRune('[')
 	b.WriteString(timestamp())

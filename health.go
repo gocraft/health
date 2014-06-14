@@ -46,8 +46,8 @@ func NewStream() *Stream {
 	return s
 }
 
-func (s *Stream) AddLogfileWriterSink(writer io.Writer) *Stream {
-	s.Sinks = append(s.Sinks, &LogfileWriterSink{Writer: writer})
+func (s *Stream) AddWriterSink(writer io.Writer) *Stream {
+	s.Sinks = append(s.Sinks, &WriterSink{writer})
 	return s
 }
 

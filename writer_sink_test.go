@@ -19,10 +19,10 @@ var kvsCompletionRegexp = regexp.MustCompile("\\[[^\\]]+\\]: job:(.+) status:(.+
 
 var testErr = errors.New("my test error")
 
-func BenchmarkLogfileSinkEmitEvent(b *testing.B) {
+func BenchmarkWriterSinkEmitEvent(b *testing.B) {
 	var by bytes.Buffer
 	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
-	sink := LogfileWriterSink{Writer: &by}
+	sink := WriterSink{&by}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		by.Reset()
@@ -30,10 +30,10 @@ func BenchmarkLogfileSinkEmitEvent(b *testing.B) {
 	}
 }
 
-func BenchmarkLogfileSinkEmitEventErr(b *testing.B) {
+func BenchmarkWriterSinkEmitEventErr(b *testing.B) {
 	var by bytes.Buffer
 	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
-	sink := LogfileWriterSink{Writer: &by}
+	sink := WriterSink{&by}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		by.Reset()
@@ -41,10 +41,10 @@ func BenchmarkLogfileSinkEmitEventErr(b *testing.B) {
 	}
 }
 
-func BenchmarkLogfileSinkEmitTiming(b *testing.B) {
+func BenchmarkWriterSinkEmitTiming(b *testing.B) {
 	var by bytes.Buffer
 	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
-	sink := LogfileWriterSink{Writer: &by}
+	sink := WriterSink{&by}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		by.Reset()
@@ -52,10 +52,10 @@ func BenchmarkLogfileSinkEmitTiming(b *testing.B) {
 	}
 }
 
-func BenchmarkLogfileSinkEmitJobCompletion(b *testing.B) {
+func BenchmarkWriterSinkEmitJobCompletion(b *testing.B) {
 	var by bytes.Buffer
 	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
-	sink := LogfileWriterSink{Writer: &by}
+	sink := WriterSink{&by}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		by.Reset()
@@ -63,9 +63,9 @@ func BenchmarkLogfileSinkEmitJobCompletion(b *testing.B) {
 	}
 }
 
-func TestLogfileSinkEmitEventBasic(t *testing.T) {
+func TestWriterSinkEmitEventBasic(t *testing.T) {
 	var b bytes.Buffer
-	sink := LogfileWriterSink{Writer: &b}
+	sink := WriterSink{&b}
 	err := sink.EmitEvent("myjob", "myevent", nil)
 	assert.NoError(t, err)
 
@@ -77,9 +77,9 @@ func TestLogfileSinkEmitEventBasic(t *testing.T) {
 	assert.Equal(t, "myevent", result[2])
 }
 
-func TestLogfileSinkEmitEventKvs(t *testing.T) {
+func TestWriterSinkEmitEventKvs(t *testing.T) {
 	var b bytes.Buffer
-	sink := LogfileWriterSink{Writer: &b}
+	sink := WriterSink{&b}
 	err := sink.EmitEvent("myjob", "myevent", map[string]string{"wat": "ok", "another": "thing"})
 	assert.NoError(t, err)
 
@@ -92,9 +92,9 @@ func TestLogfileSinkEmitEventKvs(t *testing.T) {
 	assert.Equal(t, "another:thing wat:ok", result[3])
 }
 
-func TestLogfileSinkEmitEventErrBasic(t *testing.T) {
+func TestWriterSinkEmitEventErrBasic(t *testing.T) {
 	var b bytes.Buffer
-	sink := LogfileWriterSink{Writer: &b}
+	sink := WriterSink{&b}
 	err := sink.EmitEventErr("myjob", "myevent", testErr, nil)
 	assert.NoError(t, err)
 
@@ -107,9 +107,9 @@ func TestLogfileSinkEmitEventErrBasic(t *testing.T) {
 	assert.Equal(t, testErr.Error(), result[3])
 }
 
-func TestLogfileSinkEmitEventErrKvs(t *testing.T) {
+func TestWriterSinkEmitEventErrKvs(t *testing.T) {
 	var b bytes.Buffer
-	sink := LogfileWriterSink{Writer: &b}
+	sink := WriterSink{&b}
 	err := sink.EmitEventErr("myjob", "myevent", testErr, map[string]string{"wat": "ok", "another": "thing"})
 	assert.NoError(t, err)
 
@@ -123,9 +123,9 @@ func TestLogfileSinkEmitEventErrKvs(t *testing.T) {
 	assert.Equal(t, "another:thing wat:ok", result[4])
 }
 
-func TestLogfileSinkEmitTimingBasic(t *testing.T) {
+func TestWriterSinkEmitTimingBasic(t *testing.T) {
 	var b bytes.Buffer
-	sink := LogfileWriterSink{Writer: &b}
+	sink := WriterSink{&b}
 	err := sink.EmitTiming("myjob", "myevent", 1204000, nil)
 	assert.NoError(t, err)
 
@@ -138,9 +138,9 @@ func TestLogfileSinkEmitTimingBasic(t *testing.T) {
 	assert.Equal(t, "1204 μs", result[3])
 }
 
-func TestLogfileSinkEmitTimingKvs(t *testing.T) {
+func TestWriterSinkEmitTimingKvs(t *testing.T) {
 	var b bytes.Buffer
-	sink := LogfileWriterSink{Writer: &b}
+	sink := WriterSink{&b}
 	err := sink.EmitTiming("myjob", "myevent", 34567890, map[string]string{"wat": "ok", "another": "thing"})
 	assert.NoError(t, err)
 
@@ -154,10 +154,10 @@ func TestLogfileSinkEmitTimingKvs(t *testing.T) {
 	assert.Equal(t, "another:thing wat:ok", result[4])
 }
 
-func TestLogfileSinkEmitJobCompletionBasic(t *testing.T) {
+func TestWriterSinkEmitJobCompletionBasic(t *testing.T) {
 	for kind, kindStr := range completionTypeToString {
 		var b bytes.Buffer
-		sink := LogfileWriterSink{Writer: &b}
+		sink := WriterSink{&b}
 		err := sink.EmitJobCompletion("myjob", kind, 1204000, nil)
 		assert.NoError(t, err)
 
@@ -171,10 +171,10 @@ func TestLogfileSinkEmitJobCompletionBasic(t *testing.T) {
 	}
 }
 
-func TestLogfileSinkEmitJobCompletionKvs(t *testing.T) {
+func TestWriterSinkEmitJobCompletionKvs(t *testing.T) {
 	for kind, kindStr := range completionTypeToString {
 		var b bytes.Buffer
-		sink := LogfileWriterSink{Writer: &b}
+		sink := WriterSink{&b}
 		err := sink.EmitJobCompletion("myjob", kind, 34567890, map[string]string{"wat": "ok", "another": "thing"})
 		assert.NoError(t, err)
 
