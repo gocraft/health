@@ -67,14 +67,14 @@ func (s *WriterSink) EmitTiming(job string, event string, nanos int64, kvs map[s
 	return err
 }
 
-func (s *WriterSink) EmitJobCompletion(job string, kind CompletionType, nanos int64, kvs map[string]string) error {
+func (s *WriterSink) EmitComplete(job string, status CompletionStatus, nanos int64, kvs map[string]string) error {
 	var b bytes.Buffer
 	b.WriteRune('[')
 	b.WriteString(timestamp())
 	b.WriteString("]: job:")
 	b.WriteString(job)
 	b.WriteString(" status:")
-	b.WriteString(completionTypeToString[kind])
+	b.WriteString(completionStatusToString[status])
 	b.WriteString(" time:")
 	writeNanoseconds(&b, nanos)
 	writeMapConsistently(&b, kvs)

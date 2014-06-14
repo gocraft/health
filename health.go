@@ -18,15 +18,6 @@ type EventReceiver interface {
 	TimingKv(eventName string, nanoseconds int64, kvs map[string]string)
 }
 
-// Thought: add
-// ErrorEvent(eventName string) error
-// and ErrorEventKv, (not sure about Timing as well)
-// So if a function has an error and wants to log it, they can do this:
-// if err != nil {
-// 	   return Stram.ErrorEventKv("bad_data", Kvs{"err": err})
-// }
-// Or, one could name it ErrorEvent(eventName string, err error) error, which would automatically add err as a kv thing and then return the error
-
 type Stream struct {
 	Sinks     []Sink
 	KeyValues map[string]string
@@ -59,7 +50,6 @@ func (s *Stream) KeyValue(key string, value string) *Stream {
 	return s
 }
 
-// Returns a NEW Stream. NOTE: the job name will completely overwrite the
 func (s *Stream) NewJob(name string) *Job {
 	return &Job{
 		Stream:  s,
@@ -91,24 +81,14 @@ func (j *Job) EventKv(eventName string, kvs map[string]string) {
 }
 
 func (j *Job) EventErr(eventName string, err error) error {
-	var kvs Kvs
-	if err != nil {
-		kvs = Kvs{"err": err.Error()}
-	}
-	allKvs := j.mergedKeyValues(kvs)
+	allKvs := j.mergedKeyValues(nil)
 	for _, sink := range j.Stream.Sinks {
-		sink.EmitEvent(j.JobName, eventName, allKvs)
+		sink.EmitEventErr(j.JobName, eventName, err, allKvs)
 	}
 	return err
 }
 
 func (j *Job) EventErrKv(eventName string, err error, kvs map[string]string) error {
-	if kvs == nil {
-		kvs = make(Kvs)
-	}
-	if err != nil {
-		kvs["err"] = err.Error()
-	}
 	allKvs := j.mergedKeyValues(kvs)
 	for _, sink := range j.Stream.Sinks {
 		sink.EmitEvent(j.JobName, eventName, allKvs)
@@ -130,36 +110,18 @@ func (j *Job) TimingKv(eventName string, nanoseconds int64, kvs map[string]strin
 	}
 }
 
-func (j *Job) Success() {
-	j.Timing("success", time.Since(j.Start).Nanoseconds())
+func (j *Job) Complete(status CompletionStatus) {
+	allKvs := j.mergedKeyValues(nil)
+	for _, sink := range j.Stream.Sinks {
+		sink.EmitComplete(j.JobName, status, time.Since(j.Start).Nanoseconds(), allKvs)
+	}
 }
 
-func (j *Job) SuccessKv(kvs map[string]string) {
-	j.TimingKv("success", time.Since(j.Start).Nanoseconds(), kvs)
-}
-
-func (j *Job) UnhandledError() {
-	j.Timing("error", time.Since(j.Start).Nanoseconds())
-}
-
-func (j *Job) UnhandledErrorKv(kvs map[string]string) {
-	j.TimingKv("error", time.Since(j.Start).Nanoseconds(), kvs)
-}
-
-func (j *Job) ValidationError() {
-	j.Timing("validation", time.Since(j.Start).Nanoseconds())
-}
-
-func (j *Job) ValidationErrorKv(kvs map[string]string) {
-	j.TimingKv("validation", time.Since(j.Start).Nanoseconds(), kvs)
-}
-
-func (j *Job) JunkError() {
-	j.Timing("junk", time.Since(j.Start).Nanoseconds())
-}
-
-func (j *Job) JunkErrorKv(kvs map[string]string) {
-	j.TimingKv("junk", time.Since(j.Start).Nanoseconds(), kvs)
+func (j *Job) CompleteKv(status CompletionStatus, kvs map[string]string) {
+	allKvs := j.mergedKeyValues(kvs)
+	for _, sink := range j.Stream.Sinks {
+		sink.EmitComplete(j.JobName, status, time.Since(j.Start).Nanoseconds(), allKvs)
+	}
 }
 
 func (j *Job) mergedKeyValues(instanceKvs map[string]string) map[string]string {

@@ -52,14 +52,14 @@ func BenchmarkWriterSinkEmitTiming(b *testing.B) {
 	}
 }
 
-func BenchmarkWriterSinkEmitJobCompletion(b *testing.B) {
+func BenchmarkWriterSinkEmitComplete(b *testing.B) {
 	var by bytes.Buffer
 	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
 	sink := WriterSink{&by}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		by.Reset()
-		sink.EmitJobCompletion("myjob", Success, 234203, someKvs)
+		sink.EmitComplete("myjob", Success, 234203, someKvs)
 	}
 }
 
@@ -154,11 +154,11 @@ func TestWriterSinkEmitTimingKvs(t *testing.T) {
 	assert.Equal(t, "another:thing wat:ok", result[4])
 }
 
-func TestWriterSinkEmitJobCompletionBasic(t *testing.T) {
-	for kind, kindStr := range completionTypeToString {
+func TestWriterSinkEmitCompleteBasic(t *testing.T) {
+	for kind, kindStr := range completionStatusToString {
 		var b bytes.Buffer
 		sink := WriterSink{&b}
-		err := sink.EmitJobCompletion("myjob", kind, 1204000, nil)
+		err := sink.EmitComplete("myjob", kind, 1204000, nil)
 		assert.NoError(t, err)
 
 		str := b.String()
@@ -171,11 +171,11 @@ func TestWriterSinkEmitJobCompletionBasic(t *testing.T) {
 	}
 }
 
-func TestWriterSinkEmitJobCompletionKvs(t *testing.T) {
-	for kind, kindStr := range completionTypeToString {
+func TestWriterSinkEmitCompleteKvs(t *testing.T) {
+	for kind, kindStr := range completionStatusToString {
 		var b bytes.Buffer
 		sink := WriterSink{&b}
-		err := sink.EmitJobCompletion("myjob", kind, 34567890, map[string]string{"wat": "ok", "another": "thing"})
+		err := sink.EmitComplete("myjob", kind, 34567890, map[string]string{"wat": "ok", "another": "thing"})
 		assert.NoError(t, err)
 
 		str := b.String()
