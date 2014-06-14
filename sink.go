@@ -16,14 +16,20 @@ const (
 	Junk
 )
 
+var completionTypeToString = map[CompletionType]string{
+	Success:         "success",
+	ValidationError: "validation_error",
+	Panic:           "panic",
+	Error:           "error",
+	Junk:            "junk",
+}
+
 type Sink interface {
 	EmitEvent(job string, event string, kvs map[string]string) error
 	EmitEventErr(job string, event string, err error, kvs map[string]string) error
 	EmitTiming(job string, event string, nanoseconds int64, kvs map[string]string) error
 	EmitJobCompletion(job string, kind CompletionType, nanoseconds int64, kvs map[string]string) error
 }
-
-
 
 // {} -> ""
 // {"abc": "def", "foo": "bar"} -> " [abc:def foo:bar]"
