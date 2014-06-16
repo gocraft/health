@@ -67,6 +67,14 @@ func (s *WriterSink) EmitTiming(job string, event string, nanos int64, kvs map[s
 	return err
 }
 
+var completionStatusToString = map[CompletionStatus]string{
+	Success:         "success",
+	ValidationError: "validation_error",
+	Panic:           "panic",
+	Error:           "error",
+	Junk:            "junk",
+}
+
 func (s *WriterSink) EmitComplete(job string, status CompletionStatus, nanos int64, kvs map[string]string) error {
 	var b bytes.Buffer
 	b.WriteRune('[')

@@ -31,6 +31,23 @@ type Job struct {
 	Start     time.Time
 }
 
+type CompletionStatus int
+
+const (
+	Success CompletionStatus = iota
+	ValidationError
+	Panic
+	Error
+	Junk
+)
+
+type Sink interface {
+	EmitEvent(job string, event string, kvs map[string]string) error
+	EmitEventErr(job string, event string, err error, kvs map[string]string) error
+	EmitTiming(job string, event string, nanoseconds int64, kvs map[string]string) error
+	EmitComplete(job string, status CompletionStatus, nanoseconds int64, kvs map[string]string) error
+}
+
 func NewStream() *Stream {
 	s := &Stream{}
 	s.Job = s.NewJob("general")
