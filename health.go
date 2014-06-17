@@ -42,10 +42,10 @@ const (
 )
 
 type Sink interface {
-	EmitEvent(job string, event string, kvs map[string]string) error
-	EmitEventErr(job string, event string, err error, kvs map[string]string) error
-	EmitTiming(job string, event string, nanoseconds int64, kvs map[string]string) error
-	EmitComplete(job string, status CompletionStatus, nanoseconds int64, kvs map[string]string) error
+	EmitEvent(job string, event string, kvs map[string]string)
+	EmitEventErr(job string, event string, err error, kvs map[string]string)
+	EmitTiming(job string, event string, nanoseconds int64, kvs map[string]string)
+	EmitComplete(job string, status CompletionStatus, nanoseconds int64, kvs map[string]string)
 }
 
 func NewStream() *Stream {
@@ -108,7 +108,7 @@ func (j *Job) EventErr(eventName string, err error) error {
 func (j *Job) EventErrKv(eventName string, err error, kvs map[string]string) error {
 	allKvs := j.mergedKeyValues(kvs)
 	for _, sink := range j.Stream.Sinks {
-		sink.EmitEvent(j.JobName, eventName, allKvs)
+		sink.EmitEventErr(j.JobName, eventName, err, allKvs)
 	}
 	return err
 }

@@ -66,8 +66,7 @@ func BenchmarkWriterSinkEmitComplete(b *testing.B) {
 func TestWriterSinkEmitEventBasic(t *testing.T) {
 	var b bytes.Buffer
 	sink := WriterSink{&b}
-	err := sink.EmitEvent("myjob", "myevent", nil)
-	assert.NoError(t, err)
+	sink.EmitEvent("myjob", "myevent", nil)
 
 	str := b.String()
 
@@ -80,8 +79,7 @@ func TestWriterSinkEmitEventBasic(t *testing.T) {
 func TestWriterSinkEmitEventKvs(t *testing.T) {
 	var b bytes.Buffer
 	sink := WriterSink{&b}
-	err := sink.EmitEvent("myjob", "myevent", map[string]string{"wat": "ok", "another": "thing"})
-	assert.NoError(t, err)
+	sink.EmitEvent("myjob", "myevent", map[string]string{"wat": "ok", "another": "thing"})
 
 	str := b.String()
 
@@ -95,8 +93,7 @@ func TestWriterSinkEmitEventKvs(t *testing.T) {
 func TestWriterSinkEmitEventErrBasic(t *testing.T) {
 	var b bytes.Buffer
 	sink := WriterSink{&b}
-	err := sink.EmitEventErr("myjob", "myevent", testErr, nil)
-	assert.NoError(t, err)
+	sink.EmitEventErr("myjob", "myevent", testErr, nil)
 
 	str := b.String()
 
@@ -110,8 +107,7 @@ func TestWriterSinkEmitEventErrBasic(t *testing.T) {
 func TestWriterSinkEmitEventErrKvs(t *testing.T) {
 	var b bytes.Buffer
 	sink := WriterSink{&b}
-	err := sink.EmitEventErr("myjob", "myevent", testErr, map[string]string{"wat": "ok", "another": "thing"})
-	assert.NoError(t, err)
+	sink.EmitEventErr("myjob", "myevent", testErr, map[string]string{"wat": "ok", "another": "thing"})
 
 	str := b.String()
 
@@ -126,8 +122,7 @@ func TestWriterSinkEmitEventErrKvs(t *testing.T) {
 func TestWriterSinkEmitTimingBasic(t *testing.T) {
 	var b bytes.Buffer
 	sink := WriterSink{&b}
-	err := sink.EmitTiming("myjob", "myevent", 1204000, nil)
-	assert.NoError(t, err)
+	sink.EmitTiming("myjob", "myevent", 1204000, nil)
 
 	str := b.String()
 
@@ -141,8 +136,7 @@ func TestWriterSinkEmitTimingBasic(t *testing.T) {
 func TestWriterSinkEmitTimingKvs(t *testing.T) {
 	var b bytes.Buffer
 	sink := WriterSink{&b}
-	err := sink.EmitTiming("myjob", "myevent", 34567890, map[string]string{"wat": "ok", "another": "thing"})
-	assert.NoError(t, err)
+	sink.EmitTiming("myjob", "myevent", 34567890, map[string]string{"wat": "ok", "another": "thing"})
 
 	str := b.String()
 
@@ -158,8 +152,7 @@ func TestWriterSinkEmitCompleteBasic(t *testing.T) {
 	for kind, kindStr := range completionStatusToString {
 		var b bytes.Buffer
 		sink := WriterSink{&b}
-		err := sink.EmitComplete("myjob", kind, 1204000, nil)
-		assert.NoError(t, err)
+		sink.EmitComplete("myjob", kind, 1204000, nil)
 
 		str := b.String()
 
@@ -175,8 +168,7 @@ func TestWriterSinkEmitCompleteKvs(t *testing.T) {
 	for kind, kindStr := range completionStatusToString {
 		var b bytes.Buffer
 		sink := WriterSink{&b}
-		err := sink.EmitComplete("myjob", kind, 34567890, map[string]string{"wat": "ok", "another": "thing"})
-		assert.NoError(t, err)
+		sink.EmitComplete("myjob", kind, 34567890, map[string]string{"wat": "ok", "another": "thing"})
 
 		str := b.String()
 

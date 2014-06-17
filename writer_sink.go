@@ -21,7 +21,7 @@ type WriterSink struct {
 	io.Writer
 }
 
-func (s *WriterSink) EmitEvent(job string, event string, kvs map[string]string) error {
+func (s *WriterSink) EmitEvent(job string, event string, kvs map[string]string) {
 	var b bytes.Buffer
 	b.WriteRune('[')
 	b.WriteString(timestamp())
@@ -31,11 +31,10 @@ func (s *WriterSink) EmitEvent(job string, event string, kvs map[string]string) 
 	b.WriteString(event)
 	writeMapConsistently(&b, kvs)
 	b.WriteRune('\n')
-	_, err := s.Writer.Write(b.Bytes())
-	return err
+	s.Writer.Write(b.Bytes())
 }
 
-func (s *WriterSink) EmitEventErr(job string, event string, inputErr error, kvs map[string]string) error {
+func (s *WriterSink) EmitEventErr(job string, event string, inputErr error, kvs map[string]string) {
 	var b bytes.Buffer
 	b.WriteRune('[')
 	b.WriteString(timestamp())
@@ -47,11 +46,10 @@ func (s *WriterSink) EmitEventErr(job string, event string, inputErr error, kvs 
 	b.WriteString(inputErr.Error())
 	writeMapConsistently(&b, kvs)
 	b.WriteRune('\n')
-	_, err := s.Writer.Write(b.Bytes())
-	return err
+	s.Writer.Write(b.Bytes())
 }
 
-func (s *WriterSink) EmitTiming(job string, event string, nanos int64, kvs map[string]string) error {
+func (s *WriterSink) EmitTiming(job string, event string, nanos int64, kvs map[string]string) {
 	var b bytes.Buffer
 	b.WriteRune('[')
 	b.WriteString(timestamp())
@@ -63,8 +61,7 @@ func (s *WriterSink) EmitTiming(job string, event string, nanos int64, kvs map[s
 	writeNanoseconds(&b, nanos)
 	writeMapConsistently(&b, kvs)
 	b.WriteRune('\n')
-	_, err := s.Writer.Write(b.Bytes())
-	return err
+	s.Writer.Write(b.Bytes())
 }
 
 var completionStatusToString = map[CompletionStatus]string{
@@ -75,7 +72,7 @@ var completionStatusToString = map[CompletionStatus]string{
 	Junk:            "junk",
 }
 
-func (s *WriterSink) EmitComplete(job string, status CompletionStatus, nanos int64, kvs map[string]string) error {
+func (s *WriterSink) EmitComplete(job string, status CompletionStatus, nanos int64, kvs map[string]string) {
 	var b bytes.Buffer
 	b.WriteRune('[')
 	b.WriteString(timestamp())
@@ -87,8 +84,7 @@ func (s *WriterSink) EmitComplete(job string, status CompletionStatus, nanos int
 	writeNanoseconds(&b, nanos)
 	writeMapConsistently(&b, kvs)
 	b.WriteRune('\n')
-	_, err := s.Writer.Write(b.Bytes())
-	return err
+	s.Writer.Write(b.Bytes())
 }
 
 func timestamp() string {
