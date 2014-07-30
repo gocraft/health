@@ -10,13 +10,13 @@ import (
 
 // This sink writes bytes in a format that a human might like to read in a logfile
 // This can be used to log to Stdout:
-//   .AddWriterSink(os.Stdout)
+//   .AddSink(WriterSink{os.Stdout})
 // And to a file:
 //   f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-//   .AddWriterSink(f)
+//   .AddSink(WriterSink{f})
 // And to syslog:
 //   w, err := syslog.New(LOG_INFO, "wat")
-//   .AddWriterSink(w)
+//   .AddSink(WriterSink{w})
 type WriterSink struct {
 	io.Writer
 }

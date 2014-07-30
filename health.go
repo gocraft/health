@@ -1,7 +1,6 @@
 package health
 
 import (
-	"io"
 	"time"
 )
 
@@ -54,8 +53,8 @@ func NewStream() *Stream {
 	return s
 }
 
-func (s *Stream) AddWriterSink(writer io.Writer) *Stream {
-	s.Sinks = append(s.Sinks, &WriterSink{writer})
+func (s *Stream) AddSink(sink Sink) *Stream {
+	s.Sinks = append(s.Sinks, sink)
 	return s
 }
 
