@@ -54,6 +54,14 @@ func TestStatsDSinkEmitEventPrefix(t *testing.T) {
 	})
 }
 
+func TestStatsDSinkEmitEventShouldSanitize(t *testing.T) {
+	sink, err := NewStatsDSink(testAddr, "metroid")
+	assert.NoError(t, err)
+	listenFor(t, []string{"metroid.my$event:1|c\n", "metroid.my$job.my$event:1|c\n"}, func() {
+		sink.EmitEvent("my|job", "my:event", nil)
+	})
+}
+
 func TestStatsDSinkEmitEventNoPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "")
 	assert.NoError(t, err)

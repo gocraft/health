@@ -7,8 +7,12 @@ import (
 	"time"
 )
 
+type StatsDSinkSantizationFunc func(string) string
+
 // This sink emits to a StatsD deaemon by sending it a UDP packet.
 type StatsDSink struct {
+	SanitizationFunc StatsDSinkSantizationFunc
+
 	conn net.Conn
 
 	// Prefix is something like "metroid"
@@ -25,8 +29,9 @@ func NewStatsDSink(addr, prefix string) (Sink, error) {
 	}
 
 	sink := &StatsDSink{
-		conn:   c,
-		prefix: prefix,
+		SanitizationFunc: sanitizeKey,
+		conn:             c,
+		prefix:           prefix,
 	}
 
 	return sink, nil
@@ -65,7 +70,7 @@ func (s *StatsDSink) EmitComplete(job string, status CompletionStatus, nanos int
 		b.WriteString(s.prefix)
 		b.WriteRune('.')
 	}
-	b.WriteString(job)
+	b.WriteString(s.SanitizationFunc(job))
 	b.WriteRune('.')
 	b.WriteString(completionStatusToString[status])
 
@@ -83,10 +88,10 @@ func (s *StatsDSink) eventKeys(job, event, suffix string) (string, string) {
 		key2.WriteRune('.')
 	}
 
-	key1.WriteString(event)
-	key2.WriteString(job)
+	key1.WriteString(s.SanitizationFunc(event))
+	key2.WriteString(s.SanitizationFunc(job))
 	key2.WriteRune('.')
-	key2.WriteString(event)
+	key2.WriteString(s.SanitizationFunc(event))
 
 	if suffix != "" {
 		key1.WriteRune('.')
@@ -116,4 +121,16 @@ func (s *StatsDSink) measure(key string, nanos int64) {
 
 func (s *StatsDSink) send(msg []byte) {
 	s.conn.Write(msg)
+}
+
+func sanitizeKey(k string) string {
+	var key bytes.Buffer
+	for _, c := range k {
+		if c == '|' || c == ':' {
+			key.WriteRune('$')
+		} else {
+			key.WriteRune(c)
+		}
+	}
+	return key.String()
 }
