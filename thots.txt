@@ -98,8 +98,30 @@ GET /health/data/1402282825  <- Epoch seconds
     
 }
 
+GET /health/aggregations
+{
+    instance_id: "web33.2342", // host.pid
+    interval_duration: xyz, // in nanoseconds
+    
+    aggregations: [{
+        interval_start: 234234,
+        is_final: true,
+        events: {},
+        ...
+    }, ...]
+}
 
+GET /health/aggregations/overall
 
+GET /health
+{
+    instance_id: "web33.2342",
+    uptime: 234,
+    since_last_success: 2,  // seconds
+    since_last_error: 2,  // seconds
+    last_minute_successes: 4,
+    last_minute_errors: 4
+}
 
 
 

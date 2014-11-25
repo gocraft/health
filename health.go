@@ -40,6 +40,14 @@ const (
 	Junk
 )
 
+var completionStatusToString = map[CompletionStatus]string{
+	Success:         "success",
+	ValidationError: "validation_error",
+	Panic:           "panic",
+	Error:           "error",
+	Junk:            "junk",
+}
+
 type Sink interface {
 	EmitEvent(job string, event string, kvs map[string]string)
 	EmitEventErr(job string, event string, err error, kvs map[string]string)
