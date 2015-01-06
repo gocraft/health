@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/braintree/manners"
 	"github.com/gocraft/web"
-	"health"
+	"github.com/gocraft/health"
 	"math"
 	"net/http"
 	"sort"

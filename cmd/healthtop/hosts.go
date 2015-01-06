@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/buger/goterm"
-	"health/healthd"
+	"github.com/gocraft/health/healthd"
 	"io/ioutil"
 	"net/http"
 	"strings"

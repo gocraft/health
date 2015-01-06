@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/braintree/manners"
 	"github.com/stretchr/testify/assert"
-	"health"
+	"github.com/gocraft/health"
 	"net/http"
 	"testing"
 	"time"

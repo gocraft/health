@@ -2,7 +2,7 @@ package healthd
 
 import (
 	"fmt"
-	"health"
+	"github.com/gocraft/health"
 	"sort"
 	"sync"
 	"time"
