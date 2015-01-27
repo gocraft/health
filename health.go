@@ -105,17 +105,25 @@ func (j *Job) EventKv(eventName string, kvs map[string]string) {
 }
 
 func (j *Job) EventErr(eventName string, err error) error {
+	err = wrapErr(err)
 	allKvs := j.mergedKeyValues(nil)
 	for _, sink := range j.Stream.Sinks {
 		sink.EmitEventErr(j.JobName, eventName, err, allKvs)
+	}
+	if err, ok := err.(*UnmutedError); ok {
+		err.Emitted = true
 	}
 	return err
 }
 
 func (j *Job) EventErrKv(eventName string, err error, kvs map[string]string) error {
+	err = wrapErr(err)
 	allKvs := j.mergedKeyValues(kvs)
 	for _, sink := range j.Stream.Sinks {
 		sink.EmitEventErr(j.JobName, eventName, err, allKvs)
+	}
+	if err, ok := err.(*UnmutedError); ok {
+		err.Emitted = true
 	}
 	return err
 }

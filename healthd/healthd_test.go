@@ -2,8 +2,8 @@ package healthd
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"github.com/gocraft/health"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
