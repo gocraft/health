@@ -320,9 +320,23 @@ See your top jobs:
 healthtop jobs
 ```
 
-(By default, healthop will query a healthd on localhost:5032 -- if this is not the case, you can use the source option: ```healthtop source 10.28.3.132:5032 jobs```)
+![Healthtop Screenshot](https://gocraft.github.io/health/images/healthtop.png)
+
+(By default, healthop will query healthd on localhost:5032 -- if this is not the case, you can use the source option: ```healthtop --source=10.28.3.132:5032 jobs```)
 
 You can sort your top jobs by a variety of things:
+
+```bash
+$ healthtop jobs --sort
+Error: flag needs an argument: --sort
+Usage of jobs:
+  -h, --help=false: help for jobs
+      --name="": name is a partial match on the name
+      --sort="name": sort ∈ {name, count, count_success, count_XXX, min, max, avg}
+      --source="localhost:5032": source is the host:port of the healthd to query. ex: localhost:5031
+
+$ healthtop jobs --sort=count_error
+```
 
 
 See your hosts:
@@ -331,10 +345,12 @@ See your hosts:
 healthtop hosts
 ```
 
+![Healthtop Screenshot](https://gocraft.github.io/health/images/healthtop_hosts.png)
+
 To get help:
 
 ```bash
-healthtop
+healthtop help
 ```
 
 ## Current Status and Contributing
@@ -349,6 +365,7 @@ health core:
 
 healthd & healthtop
 * A web UI that is built into healthd
+* Keep track of multiple service types so that we can use one healthd to monitor multiple types of applications
 * Ability to drill into specific jobs to see top errors
 * tests
 * general love
