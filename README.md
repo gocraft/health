@@ -360,10 +360,12 @@ Currently, the core instrumentation component is very solid. Healthd is good. he
 Request for contributions:
 
 health core:
+
 * A gauge metric type
 * A way to do fine-grained histograms with variable binning.
 
 healthd & healthtop
+
 * A web UI that is built into healthd
 * Keep track of multiple service types so that we can use one healthd to monitor multiple types of applications
 * Ability to drill into specific jobs to see top errors
@@ -372,6 +374,17 @@ healthd & healthtop
 
 If anything here interests you, let me know by opening an issue and we can collaborate on it.
 
+## gocraft
+
+gocraft offers a toolkit for building web apps. Currently these packages are available:
+
+* [gocraft/web](https://github.com/gocraft/web) - Go Router + Middleware. Your Contexts.
+* [gocraft/dbr](https://github.com/gocraft/dbr) - Additions to Go's database/sql for super fast performance and convenience.
+* [gocraft/health](https://github.com/gocraft/health) -  Instrument your web apps with logging and metrics.
+
+These packages were developed by the [engineering team](https://eng.uservoice.com) at [UserVoice](https://www.uservoice.com) and currently power much of its infrastructure and tech stack.
+
 ## Authors
 
-*  Jonathan Novak -- [https://github.com/cypriss](https://github.com/cypriss)
+* Jonathan Novak -- [https://github.com/cypriss](https://github.com/cypriss)
+* Sponsored by [UserVoice](https://eng.uservoice.com)
