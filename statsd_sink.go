@@ -2,8 +2,8 @@ package health
 
 import (
 	"bytes"
+	"fmt"
 	"net"
-	"strconv"
 	"time"
 )
 
@@ -114,7 +114,7 @@ func (s *StatsDSink) measure(key string, nanos int64) {
 	var msg bytes.Buffer
 	msg.WriteString(key)
 	msg.WriteRune(':')
-	msg.WriteString(strconv.FormatInt(nanos/1000000, 10))
+	msg.WriteString(fmt.Sprintf("%f", float64(nanos)/float64(time.Millisecond)))
 	msg.WriteString("|ms\n")
 	s.send(msg.Bytes())
 }

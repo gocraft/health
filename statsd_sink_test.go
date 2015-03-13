@@ -89,7 +89,7 @@ func TestStatsDSinkEmitEventErrNoPrefix(t *testing.T) {
 func TestStatsDSinkEmitTimingPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
 	assert.NoError(t, err)
-	listenFor(t, []string{"metroid.my.event:123|ms\n", "metroid.my.job.my.event:123|ms\n"}, func() {
+	listenFor(t, []string{"metroid.my.event:123.456789|ms\n", "metroid.my.job.my.event:123.456789|ms\n"}, func() {
 		sink.EmitTiming("my.job", "my.event", 123456789, nil)
 	})
 }
@@ -97,7 +97,7 @@ func TestStatsDSinkEmitTimingPrefix(t *testing.T) {
 func TestStatsDSinkEmitTimingNoPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "")
 	assert.NoError(t, err)
-	listenFor(t, []string{"my.event:123|ms\n", "my.job.my.event:123|ms\n"}, func() {
+	listenFor(t, []string{"my.event:123.456789|ms\n", "my.job.my.event:123.456789|ms\n"}, func() {
 		sink.EmitTiming("my.job", "my.event", 123456789, nil)
 	})
 }
@@ -106,7 +106,7 @@ func TestStatsDSinkEmitCompletePrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
 	assert.NoError(t, err)
 	for kind, kindStr := range completionStatusToString {
-		str := fmt.Sprintf("metroid.my.job.%s:129|ms\n", kindStr)
+		str := fmt.Sprintf("metroid.my.job.%s:129.456789|ms\n", kindStr)
 		listenFor(t, []string{str}, func() {
 			sink.EmitComplete("my.job", kind, 129456789, nil)
 		})
@@ -117,9 +117,17 @@ func TestStatsDSinkEmitCompleteNoPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "")
 	assert.NoError(t, err)
 	for kind, kindStr := range completionStatusToString {
-		str := fmt.Sprintf("my.job.%s:129|ms\n", kindStr)
+		str := fmt.Sprintf("my.job.%s:129.456789|ms\n", kindStr)
 		listenFor(t, []string{str}, func() {
 			sink.EmitComplete("my.job", kind, 129456789, nil)
 		})
 	}
+}
+
+func TestStatsDSinkEmitTimingSubMillisecond(t *testing.T) {
+	sink, err := NewStatsDSink(testAddr, "metroid")
+	assert.NoError(t, err)
+	listenFor(t, []string{"metroid.my.event:0.456789|ms\n", "metroid.my.job.my.event:0.456789|ms\n"}, func() {
+		sink.EmitTiming("my.job", "my.event", 456789, nil)
+	})
 }
