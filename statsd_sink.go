@@ -72,7 +72,7 @@ func (s *StatsDSink) EmitComplete(job string, status CompletionStatus, nanos int
 	}
 	b.WriteString(s.SanitizationFunc(job))
 	b.WriteRune('.')
-	b.WriteString(completionStatusToString[status])
+	b.WriteString(status.String())
 
 	s.measure(b.String(), nanos)
 }

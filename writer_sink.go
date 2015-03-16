@@ -71,7 +71,7 @@ func (s *WriterSink) EmitComplete(job string, status CompletionStatus, nanos int
 	b.WriteString("]: job:")
 	b.WriteString(job)
 	b.WriteString(" status:")
-	b.WriteString(completionStatusToString[status])
+	b.WriteString(status.String())
 	b.WriteString(" time:")
 	writeNanoseconds(&b, nanos)
 	writeMapConsistently(&b, kvs)

@@ -48,6 +48,10 @@ var completionStatusToString = map[CompletionStatus]string{
 	Junk:            "junk",
 }
 
+func (cs CompletionStatus) String() string {
+	return completionStatusToString[cs]
+}
+
 type Sink interface {
 	EmitEvent(job string, event string, kvs map[string]string)
 	EmitEventErr(job string, event string, err error, kvs map[string]string)
