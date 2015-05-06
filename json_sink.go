@@ -11,47 +11,63 @@ type JsonSink struct {
 
 func (j *JsonSink) EmitEvent(job string, event string, kvs map[string]string) {
 
-	b, _ := json.Marshal(struct {
+	b, err := json.Marshal(struct {
 		Job       string            `json:"event"`
 		Event     string            `json:"job"`
 		Timestamp string            `json:"timestamp"`
 		Kvs       map[string]string `json:"kvs"`
 	}{job, event, timestamp(), kvs})
+
+	if err != nil {
+		return
+	}
 	j.Write(b)
 }
 
 func (j *JsonSink) EmitEventErr(job string, event string, err error, kvs map[string]string) {
 
-	b, _ := json.Marshal(struct {
+	b, err := json.Marshal(struct {
 		Job       string            `json:"event"`
 		Event     string            `json:"job"`
 		Timestamp string            `json:"timestamp"`
 		Err       error             `json:"err"`
 		Kvs       map[string]string `json:"kvs"`
 	}{job, event, timestamp(), err, kvs})
+
+	if err != nil {
+		return
+	}
 	j.Write(b)
 }
 
 func (j *JsonSink) EmitTiming(job string, event string, nanoseconds int64, kvs map[string]string) {
 
-	b, _ := json.Marshal(struct {
+	b, err := json.Marshal(struct {
 		Job         string            `json:"event"`
 		Event       string            `json:"job"`
 		Timestmap   string            `json:"timestamp"`
 		Nanoseconds int64             `json:"nanoseconds"`
 		Kvs         map[string]string `json:"kvs"`
 	}{job, event, timestamp(), nanoseconds, kvs})
+
+	if err != nil {
+		return
+	}
 	j.Write(b)
 }
 
 func (j *JsonSink) EmitComplete(job string, status CompletionStatus, nanoseconds int64, kvs map[string]string) {
 
-	b, _ := json.Marshal(struct {
+	b, err := json.Marshal(struct {
 		Job         string            `json:"event"`
 		Status      string            `json:"status"`
 		Timestmap   string            `json:"timestamp"`
 		Nanoseconds int64             `json:"nanoseconds"`
 		Kvs         map[string]string `json:"kvs"`
 	}{job, status.String(), timestamp(), nanoseconds, kvs})
+
+	if err != nil {
+		return
+	}
 	j.Write(b)
 }
