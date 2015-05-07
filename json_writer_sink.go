@@ -46,7 +46,7 @@ func (j *JsonWriterSink) EmitTiming(job string, event string, nanoseconds int64,
 	b, err := json.Marshal(struct {
 		Job         string
 		Event       string
-		Timestmap   string
+		Timestamp   string
 		Nanoseconds int64
 		Kvs         map[string]string
 	}{job, event, timestamp(), nanoseconds, kvs})
@@ -62,7 +62,7 @@ func (j *JsonWriterSink) EmitComplete(job string, status CompletionStatus, nanos
 	b, err := json.Marshal(struct {
 		Job         string
 		Status      string
-		Timestmap   string
+		Timestamp   string
 		Nanoseconds int64
 		Kvs         map[string]string
 	}{job, status.String(), timestamp(), nanoseconds, kvs})
