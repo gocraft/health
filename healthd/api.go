@@ -85,9 +85,12 @@ func (hd *HealthD) apiRouter() http.Handler {
 }
 
 func (hd *HealthD) startHttpServer(hostPort string) {
-	server := manners.NewServer()
-	hd.stopHTTP = server.Shutdown
-	server.ListenAndServe(hostPort, hd.apiRouter())
+	server := manners.NewWithServer(&http.Server{
+		Addr:    hostPort,
+		Handler: hd.apiRouter(),
+	})
+	hd.stopHTTP = server.Close
+	server.ListenAndServe()
 }
 
 func (c *apiContext) SetContentType(rw web.ResponseWriter, req *web.Request, next web.NextMiddlewareFunc) {
