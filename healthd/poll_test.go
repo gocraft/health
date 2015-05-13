@@ -3,12 +3,13 @@ package healthd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/braintree/manners"
-	"github.com/gocraft/health"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/braintree/manners"
+	"github.com/gocraft/health"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPoll(t *testing.T) {
@@ -23,7 +24,7 @@ func TestPoll(t *testing.T) {
 	}
 	stop := serveJson(":5050", data)
 	defer func() {
-		stop <- true
+		stop()
 	}()
 
 	responses := make(chan *pollResponse, 2)
@@ -43,7 +44,7 @@ func TestPoll(t *testing.T) {
 // serveJson will start a server on the hostPort and serve any path the Jsonified data.
 // Each successive HTTP request will return the next data.
 // If there is only one data, it will be returned on each request.
-func serveJson(hostPort string, data ...interface{}) chan bool {
+func serveJson(hostPort string, data ...interface{}) func() bool {
 	var curData = 0
 
 	var f http.HandlerFunc
@@ -57,8 +58,7 @@ func serveJson(hostPort string, data ...interface{}) chan bool {
 		fmt.Fprintf(rw, string(jsonData))
 	}
 
-	server := manners.NewServer()
-	go server.ListenAndServe(hostPort, f)
+	go manners.ListenAndServe(hostPort, f)
 
-	return server.Shutdown
+	return manners.Close
 }
