@@ -2,12 +2,13 @@ package healthd
 
 import (
 	"encoding/json"
-	"github.com/gocraft/health"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gocraft/health"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHealthD(t *testing.T) {
@@ -81,15 +82,15 @@ func testJobs(t *testing.T, hd *HealthD) {
 	assert.Equal(t, len(resp.Jobs), 1)
 	job := resp.Jobs[0]
 	assert.Equal(t, job.Name, "foo")
-	assert.Equal(t, job.Count, 2)
-	assert.Equal(t, job.CountSuccess, 1)
-	assert.Equal(t, job.CountValidationError, 1)
-	assert.Equal(t, job.CountError, 0)
-	assert.Equal(t, job.CountPanic, 0)
-	assert.Equal(t, job.CountJunk, 0)
-	assert.Equal(t, job.NanosSum, 14443)
-	assert.Equal(t, job.NanosMin, 5678)
-	assert.Equal(t, job.NanosMax, 8765)
+	assert.EqualValues(t, job.Count, 2)
+	assert.EqualValues(t, job.CountSuccess, 1)
+	assert.EqualValues(t, job.CountValidationError, 1)
+	assert.EqualValues(t, job.CountError, 0)
+	assert.EqualValues(t, job.CountPanic, 0)
+	assert.EqualValues(t, job.CountJunk, 0)
+	assert.EqualValues(t, job.NanosSum, 14443)
+	assert.EqualValues(t, job.NanosMin, 5678)
+	assert.EqualValues(t, job.NanosMax, 8765)
 	assert.InDelta(t, job.NanosAvg, 7221.5, 0.01)
 	assert.InDelta(t, job.NanosSumSquares, 1.09064909e+08, 0.01)
 	assert.InDelta(t, job.NanosStdDev, 2182.8386, 0.01)
@@ -113,21 +114,21 @@ func testHosts(t *testing.T, hd *HealthD) {
 		assert.WithinDuration(t, hs.LastCheckTime, time.Now(), time.Second*2)
 		assert.WithinDuration(t, hs.FirstSuccessfulResponse, time.Now(), time.Second*2)
 		assert.WithinDuration(t, hs.LastSuccessfulResponse, time.Now(), time.Second*2)
-		assert.Equal(t, hs.LastInstanceId, health.Identifier)
-		assert.Equal(t, hs.LastIntervalDuration, time.Minute)
-		assert.Equal(t, hs.LastCode, 200)
+		assert.EqualValues(t, hs.LastInstanceId, health.Identifier)
+		assert.EqualValues(t, hs.LastIntervalDuration, time.Minute)
+		assert.EqualValues(t, hs.LastCode, 200)
 		assert.Equal(t, hs.LastErr, "")
 	}
 }
 
 // assertFooBarAggregation asserts that intAgg is the aggregation (generally) of the stuff created in TestHealthD
 func assertFooBarAggregation(t *testing.T, intAgg *health.IntervalAggregation) {
-	assert.Equal(t, intAgg.Events["bar"], 2)
-	assert.Equal(t, intAgg.Timers["baz"].Count, 2)
+	assert.EqualValues(t, intAgg.Events["bar"], 2)
+	assert.EqualValues(t, intAgg.Timers["baz"].Count, 2)
 
 	job := intAgg.Jobs["foo"]
 	assert.NotNil(t, job)
-	assert.Equal(t, job.Count, 2)
-	assert.Equal(t, job.CountSuccess, 1)
-	assert.Equal(t, job.CountValidationError, 1)
+	assert.EqualValues(t, job.Count, 2)
+	assert.EqualValues(t, job.CountSuccess, 1)
+	assert.EqualValues(t, job.CountValidationError, 1)
 }
