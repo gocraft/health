@@ -38,7 +38,7 @@ type HealthD struct {
 
 	stop           bool
 	stopAggregator chan bool
-	stopHTTP       chan bool
+	stopHTTP       func() bool
 }
 
 type HostStatus struct {
@@ -73,7 +73,6 @@ func StartNewHealthD(monitoredHostPorts []string, serverHostPort string, stream 
 	hd.intervalDuration = 0   // We don't know this yet. Will be configured from polled hosts.
 	hd.maxIntervals = 0       // We don't know this yet. See above.
 	hd.stopAggregator = make(chan bool, 1)
-	hd.stopHTTP = make(chan bool, 1)
 
 	for _, hp := range monitoredHostPorts {
 		hd.hostStatus[hp] = &HostStatus{
@@ -90,7 +89,7 @@ func StartNewHealthD(monitoredHostPorts []string, serverHostPort string, stream 
 func (hd *HealthD) Stop() {
 	hd.stop = true
 	hd.stopAggregator <- true
-	hd.stopHTTP <- true
+	hd.stopHTTP()
 }
 
 func (hd *HealthD) pollAndAggregate() {
