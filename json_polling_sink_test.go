@@ -2,9 +2,10 @@ package health
 
 import (
 	"errors"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestJsonPollingSink(t *testing.T) {
@@ -26,8 +27,8 @@ func TestJsonPollingSink(t *testing.T) {
 	assert.Equal(t, 1, len(intervals))
 
 	intAgg := intervals[0]
-	assert.Equal(t, 1, intAgg.Events["myevent"])
-	assert.Equal(t, 1, intAgg.EventErrs["myevent"].Count)
-	assert.Equal(t, 1, intAgg.Timers["myevent"].Count)
-	assert.Equal(t, 1, intAgg.Jobs["myjob"].Count)
+	assert.EqualValues(t, 1, intAgg.Events["myevent"])
+	assert.EqualValues(t, 1, intAgg.EventErrs["myevent"].Count)
+	assert.EqualValues(t, 1, intAgg.Timers["myevent"].Count)
+	assert.EqualValues(t, 1, intAgg.Jobs["myjob"].Count)
 }

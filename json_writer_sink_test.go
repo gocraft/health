@@ -69,7 +69,7 @@ func TestJsonWriterSinkEventTiming(t *testing.T) {
 	assert.Equal(t, "bar", event.Kvs["foo"])
 	assert.Equal(t, "myjob", event.Job)
 	assert.Equal(t, "myevent", event.Event)
-	assert.Equal(t, 34567890, event.Nanoseconds)
+	assert.EqualValues(t, 34567890, event.Nanoseconds)
 }
 
 func TestJsonWriterSinkEventComplete(t *testing.T) {
@@ -87,7 +87,7 @@ func TestJsonWriterSinkEventComplete(t *testing.T) {
 
 		assert.Equal(t, "myjob", event.Job)
 		assert.Equal(t, kindStr, event.Status)
-		assert.Equal(t, 1204000, event.Nanoseconds)
+		assert.EqualValues(t, 1204000, event.Nanoseconds)
 		buf.Reset()
 	}
 }

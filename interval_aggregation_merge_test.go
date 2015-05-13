@@ -2,8 +2,9 @@ package health
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // Let's leverage clone's fixture data and make sure we can merge into a new blank aggregation to get the same data.
@@ -38,24 +39,24 @@ func TestMerge(t *testing.T) {
 	assert.Equal(t, 1200, len(intAgg.EventErrs))
 
 	// Spot-check events:
-	assert.Equal(t, 2, intAgg.Events["event0"])
+	assert.EqualValues(t, 2, intAgg.Events["event0"])
 
 	// Spot-check timings:
-	assert.Equal(t, 2, intAgg.Timers["timing0"].Count)
-	assert.Equal(t, 24, intAgg.Timers["timing0"].NanosSum)
+	assert.EqualValues(t, 2, intAgg.Timers["timing0"].Count)
+	assert.EqualValues(t, 24, intAgg.Timers["timing0"].NanosSum)
 
 	// Spot-check event-errs:
-	assert.Equal(t, 2, intAgg.EventErrs["err0"].Count)
-	assert.Equal(t, []error{fmt.Errorf("wat")}, intAgg.EventErrs["err0"].getErrorSamples())
+	assert.EqualValues(t, 2, intAgg.EventErrs["err0"].Count)
+	assert.EqualValues(t, []error{fmt.Errorf("wat")}, intAgg.EventErrs["err0"].getErrorSamples())
 
 	// Spot-check jobs:
 	job := intAgg.Jobs["job0"]
-	assert.Equal(t, 2, job.CountSuccess)
-	assert.Equal(t, 0, job.CountError)
-	assert.Equal(t, 2, job.Events["event0"])
-	assert.Equal(t, 0, job.Events["event4"])
-	assert.Equal(t, 2, job.Timers["timing0"].Count)
-	assert.Equal(t, 24, job.Timers["timing0"].NanosSum)
-	assert.Equal(t, 2, job.EventErrs["err0"].Count)
+	assert.EqualValues(t, 2, job.CountSuccess)
+	assert.EqualValues(t, 0, job.CountError)
+	assert.EqualValues(t, 2, job.Events["event0"])
+	assert.EqualValues(t, 0, job.Events["event4"])
+	assert.EqualValues(t, 2, job.Timers["timing0"].Count)
+	assert.EqualValues(t, 24, job.Timers["timing0"].NanosSum)
+	assert.EqualValues(t, 2, job.EventErrs["err0"].Count)
 	assert.Equal(t, []error{fmt.Errorf("wat")}, job.EventErrs["err0"].getErrorSamples())
 }
