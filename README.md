@@ -31,7 +31,7 @@ func main() {
 		stream.EventErr("new_statsd_sink", err)
 		return
 	}
-	Stream.AddSink(statsdSink)
+	stream.AddSink(statsdSink)
 
 	// Expose instrumentation in this app on a JSON endpoint that healthd can poll!
 	sink := health.NewJsonPollingSink(time.Minute, time.Minute*5)
