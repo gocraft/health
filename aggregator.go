@@ -27,10 +27,11 @@ func startAggregator(intervalDuration time.Duration, retain time.Duration, sink 
 
 	agg := newAggregator(intervalDuration, retain)
 
+AGGREGATE_LOOP:
 	for {
 		select {
 		case <-doneChan:
-			break
+			break AGGREGATE_LOOP
 		case cmd := <-cmdChan:
 			if cmd.Kind == cmdKindEvent {
 				agg.EmitEvent(cmd.Job, cmd.Event)
