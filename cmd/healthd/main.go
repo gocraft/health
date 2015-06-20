@@ -26,10 +26,6 @@ func main() {
 	serverHostPort := getServerHostPort()
 	healthHostPort := getHealthHostPort()
 
-	// Monitor ourselves. This will make our own instrumentation show up in the healthd output
-	// I'm not totally sure we want to do this, but (shrug) seems reasonable right now.
-	monitoredHostPorts = append(monitoredHostPorts, healthHostPort)
-
 	// Setup our health stream.
 	// Log to stdout and a setup an polling sink
 	stream := health.NewStream()

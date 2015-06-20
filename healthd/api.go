@@ -67,14 +67,39 @@ func (hd *HealthD) apiRouter() http.Handler {
 		renderNotFound(rw)
 	})
 
+	router.Get("/", func(rw web.ResponseWriter, req *web.Request) {
+		http.Redirect(rw, req.Request, "/healthd/", http.StatusMovedPermanently)
+	})
+
 	healthdRouter := router.Subrouter(apiContext{}, "/healthd")
 
-	healthdRouter.Middleware(func(c *apiContext, rw web.ResponseWriter, req *web.Request, next web.NextMiddlewareFunc) {
+	//
+	// Build the HTML page:
+	//
+	assetRouter := healthdRouter.Subrouter(apiContext{}, "")
+	assetRouter.Get("/", func(c *apiContext, rw web.ResponseWriter, req *web.Request) {
+		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+		rw.Write(MustAsset("ui/index.html"))
+	})
+	assetRouter.Get("/healthd.js", func(c *apiContext, rw web.ResponseWriter, req *web.Request) {
+		rw.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		rw.Write(MustAsset("ui/healthd.js"))
+	})
+	assetRouter.Get("/healthd.css", func(c *apiContext, rw web.ResponseWriter, req *web.Request) {
+		rw.Header().Set("Content-Type", "text/css; charset=utf-8")
+		rw.Write(MustAsset("ui/healthd.css"))
+	})
+
+	//
+	// Build the JSON API:
+	//
+	jsonAPIRouter := healthdRouter.Subrouter(apiContext{}, "")
+	jsonAPIRouter.Middleware(func(c *apiContext, rw web.ResponseWriter, req *web.Request, next web.NextMiddlewareFunc) {
 		c.hd = hd
 		next(rw, req)
 	})
 
-	healthdRouter.Middleware((*apiContext).SetContentType).
+	jsonAPIRouter.Middleware((*apiContext).SetContentType).
 		Middleware((*apiContext).HealthMiddleware).
 		Get("/aggregations", (*apiContext).Aggregations).
 		Get("/aggregations/overall", (*apiContext).Overall).
