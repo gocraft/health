@@ -68,6 +68,10 @@ type payloadEvent struct {
 	} `json:"device"`
 
 	// meta data
+
+	Metadata struct {
+		Request request `json:"request"`
+	} `json:"metaData"`
 }
 
 type payloadException struct {
@@ -84,11 +88,15 @@ type payloadFrame struct {
 	//code
 }
 
+type request struct {
+	Url string `json:"url"`
+}
+
 // Notify will send the error and stack trace to Bugsnag. Note that this doesn't take advantage of all of Bugsnag's capabilities.
-func Notify(config *Config, jobName string, eventName string, err error, trace *stack.Trace) error {
+func Notify(config *Config, jobName string, eventName string, err error, trace *stack.Trace, kvs map[string]string) error {
 
 	// Make a struct that serializes to the JSON needed for the API request to bugsnag
-	p := newPayload(config, jobName, eventName, err, trace)
+	p := newPayload(config, jobName, eventName, err, trace, kvs)
 
 	// JSON serialize it
 	data, err := json.MarshalIndent(p, "", "\t")
@@ -113,7 +121,7 @@ func Notify(config *Config, jobName string, eventName string, err error, trace *
 	return nil
 }
 
-func newPayload(config *Config, jobName string, eventName string, err error, trace *stack.Trace) *payload {
+func newPayload(config *Config, jobName string, eventName string, err error, trace *stack.Trace, kvs map[string]string) *payload {
 	except := payloadException{
 		ErrorClass: eventName,
 		Message:    err.Error(),
@@ -135,6 +143,11 @@ func newPayload(config *Config, jobName string, eventName string, err error, tra
 	}
 	evt.App.ReleaseStage = config.ReleaseStage
 	evt.Device.Hostname = config.Hostname
+
+	requestUrl, requestUrlExists := kvs["request"]
+	if requestUrlExists {
+		evt.Metadata.Request.Url = requestUrl
+	}
 
 	p := payload{
 		APIKey: config.APIKey,
