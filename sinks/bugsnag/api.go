@@ -143,8 +143,8 @@ func newPayload(config *Config, jobName string, eventName string, err error, tra
 	}
 	evt.App.ReleaseStage = config.ReleaseStage
 
-	requestUrl := kvs["request"]
-	if len(requestUrl) != 0 {
+	requestUrl, requestUrlExists := kvs["request"]
+	if requestUrlExists {
 		evt.Metadata.Request.Url = requestUrl
 	}
 
