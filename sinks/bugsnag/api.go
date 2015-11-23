@@ -142,6 +142,7 @@ func newPayload(config *Config, jobName string, eventName string, err error, tra
 		Context:        jobName,
 	}
 	evt.App.ReleaseStage = config.ReleaseStage
+	evt.Device.Hostname = config.Hostname
 
 	requestUrl, requestUrlExists := kvs["request"]
 	if requestUrlExists {
