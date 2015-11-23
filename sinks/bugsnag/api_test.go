@@ -26,7 +26,7 @@ func TestNotify(t *testing.T) {
 
 	go http.ListenAndServe(":5051", n)
 
-	err := Notify(config, "users/get", "foo.bar", fmt.Errorf("imanerror"), stack.NewTrace(0))
+	err := Notify(config, "users/get", "foo.bar", fmt.Errorf("imanerror"), stack.NewTrace(0), make(map[string]string))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

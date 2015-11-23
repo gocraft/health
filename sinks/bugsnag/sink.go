@@ -49,7 +49,7 @@ func (s *Sink) EmitEventErr(job string, event string, inputErr error, kvs map[st
 			s.cmdChan <- &cmdEventErr{Job: job, Event: event, Err: inputErr, Kvs: kvs}
 		}
 	case *health.MutedError:
-		// Do nothing!
+	// Do nothing!
 	default: // eg, case error:
 		// This shouldn't happen, all errors passed in here should be wrapped.
 	}
@@ -77,7 +77,7 @@ PROCESSING_LOOP:
 		case <-doneChan:
 			break PROCESSING_LOOP
 		case cmd := <-cmdChan:
-			if err := Notify(sink.Config, cmd.Job, cmd.Event, cmd.Err, cmd.Err.Stack); err != nil {
+			if err := Notify(sink.Config, cmd.Job, cmd.Event, cmd.Err, cmd.Err.Stack, cmd.Kvs); err != nil {
 				fmt.Fprintf(os.Stderr, "bugsnag.Notify: could not notify bugsnag. err=%v\n", err)
 			}
 		}
