@@ -37,10 +37,10 @@ type payload struct {
 	APIKey string `json:"apiKey"`
 
 	Notifier struct {
-		Name    string `json:"name"`
-		Version string `json:"version"`
-		URL     string `json:"url"`
-	} `json:"notifier"`
+			   Name    string `json:"name"`
+			   Version string `json:"version"`
+			   URL     string `json:"url"`
+		   } `json:"notifier"`
 
 	Events []payloadEvent `json:"events"`
 }
@@ -58,20 +58,20 @@ type payloadEvent struct {
 	// user
 
 	App struct {
-		// version
-		ReleaseStage string `json:"releaseStage"`
-	} `json:"app"`
+					   // version
+					   ReleaseStage string `json:"releaseStage"`
+				   } `json:"app"`
 
 	Device struct {
-		//osVersion
-		Hostname string `json:"hostname"`
-	} `json:"device"`
+					   //osVersion
+					   Hostname string `json:"hostname"`
+				   } `json:"device"`
 
 	// meta data
 
 	Metadata struct {
-		Request request `json:"request"`
-	} `json:"metaData"`
+					   Request request `json:"request"`
+				   } `json:"metaData"`
 }
 
 type payloadException struct {
@@ -89,7 +89,8 @@ type payloadFrame struct {
 }
 
 type request struct {
-	Url string `json:"url"`
+	Url        string `json:"url"`
+	Parameters string `json:"parameters"`
 }
 
 // Notify will send the error and stack trace to Bugsnag. Note that this doesn't take advantage of all of Bugsnag's capabilities.
@@ -144,9 +145,12 @@ func newPayload(config *Config, jobName string, eventName string, err error, tra
 	evt.App.ReleaseStage = config.ReleaseStage
 	evt.Device.Hostname = config.Hostname
 
-	requestUrl, requestUrlExists := kvs["request"]
-	if requestUrlExists {
+	if requestUrl, requestUrlExists := kvs["request"]; requestUrlExists {
 		evt.Metadata.Request.Url = requestUrl
+	}
+
+	if formData, formDataExists := kvs["formdata"]; formDataExists {
+		evt.Metadata.Request.Parameters = formData
 	}
 
 	p := payload{
