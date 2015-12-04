@@ -70,8 +70,9 @@ type payloadEvent struct {
 	// meta data
 
 	Metadata struct {
-					   Request request `json:"request"`
-				   } `json:"metaData"`
+		Request request           `json:"request"`
+		Kvs     map[string]string `json:"kvs"`
+	} `json:"metaData"`
 }
 
 type payloadException struct {
@@ -144,6 +145,7 @@ func newPayload(config *Config, jobName string, eventName string, err error, tra
 	}
 	evt.App.ReleaseStage = config.ReleaseStage
 	evt.Device.Hostname = config.Hostname
+	evt.Metadata.Kvs = kvs
 
 	if requestUrl, requestUrlExists := kvs["request"]; requestUrlExists {
 		evt.Metadata.Request.Url = requestUrl
