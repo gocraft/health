@@ -84,12 +84,13 @@ func (hd *HealthD) apiRouter() http.Handler {
 	return router
 }
 
-func (hd *HealthD) startHttpServer(hostPort string) {
+func (hd *HealthD) startHttpServer(hostPort string, done chan bool) {
 	server := manners.NewWithServer(&http.Server{
 		Addr:    hostPort,
 		Handler: hd.apiRouter(),
 	})
 	hd.stopHTTP = server.Close
+	done <- true
 	server.ListenAndServe()
 }
 

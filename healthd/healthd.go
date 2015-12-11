@@ -5,6 +5,7 @@ import (
 	"github.com/gocraft/health"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -36,9 +37,10 @@ type HealthD struct {
 	intervalsChanChan chan chan []*health.IntervalAggregation
 	hostsChanChan     chan chan []*HostStatus
 
-	stop           bool
-	stopAggregator chan bool
-	stopHTTP       func() bool
+	stopFlag           int64
+	stopAggregator     chan bool
+	stopStopAggregator chan bool
+	stopHTTP           func() bool
 }
 
 type HostStatus struct {
@@ -72,7 +74,8 @@ func StartNewHealthD(monitoredHostPorts []string, serverHostPort string, stream 
 	hd.retain = time.Hour * 2 // In the future this should be configurable
 	hd.intervalDuration = 0   // We don't know this yet. Will be configured from polled hosts.
 	hd.maxIntervals = 0       // We don't know this yet. See above.
-	hd.stopAggregator = make(chan bool, 1)
+	hd.stopAggregator = make(chan bool)
+	hd.stopStopAggregator = make(chan bool)
 
 	for _, hp := range monitoredHostPorts {
 		hd.hostStatus[hp] = &HostStatus{
@@ -81,15 +84,25 @@ func StartNewHealthD(monitoredHostPorts []string, serverHostPort string, stream 
 	}
 
 	go hd.pollAndAggregate()
-	go hd.startHttpServer(serverHostPort)
+
+	httpStarted := make(chan bool)
+	go hd.startHttpServer(serverHostPort, httpStarted)
+	<-httpStarted
 
 	return hd
 }
 
 func (hd *HealthD) Stop() {
-	hd.stop = true
+	atomic.StoreInt64(&hd.stopFlag, 1)
 	hd.stopAggregator <- true
+	<-hd.stopStopAggregator
 	hd.stopHTTP()
+}
+
+// shouldStop returns true if we've been flagged to stop
+func (hd *HealthD) shouldStop() bool {
+	v := atomic.LoadInt64(&hd.stopFlag)
+	return v == 1
 }
 
 func (hd *HealthD) pollAndAggregate() {
@@ -136,6 +149,7 @@ AGGREGATE_LOOP:
 		case hostsChan := <-hostsChanChan:
 			hostsChan <- hd.memorySafeHosts()
 		case <-hd.stopAggregator:
+			hd.stopStopAggregator <- true
 			break AGGREGATE_LOOP
 		}
 	}
@@ -158,7 +172,7 @@ func (hd *HealthD) poll(responses chan *pollResponse) {
 }
 
 func (hd *HealthD) getAggregationSequence() []*health.IntervalAggregation {
-	if hd.stop {
+	if hd.shouldStop() {
 		return nil
 	}
 	intervalsChan := make(chan []*health.IntervalAggregation)
@@ -167,7 +181,7 @@ func (hd *HealthD) getAggregationSequence() []*health.IntervalAggregation {
 }
 
 func (hd *HealthD) getHosts() []*HostStatus {
-	if hd.stop {
+	if hd.shouldStop() {
 		return nil
 	}
 	hostsChan := make(chan []*HostStatus)
