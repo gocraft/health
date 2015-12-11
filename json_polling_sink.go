@@ -8,6 +8,7 @@ type JsonPollingSink struct {
 	intervalDuration  time.Duration
 	cmdChan           chan *emitCmd
 	doneChan          chan int
+	doneDoneChan      chan int
 	intervalsChanChan chan chan []*IntervalAggregation
 }
 
@@ -36,6 +37,7 @@ func NewJsonPollingSink(intervalDuration time.Duration, retain time.Duration) *J
 		intervalDuration:  intervalDuration,
 		cmdChan:           make(chan *emitCmd, buffSize),
 		doneChan:          make(chan int),
+		doneDoneChan:      make(chan int),
 		intervalsChanChan: make(chan chan []*IntervalAggregation),
 	}
 
@@ -46,6 +48,7 @@ func NewJsonPollingSink(intervalDuration time.Duration, retain time.Duration) *J
 
 func (s *JsonPollingSink) ShutdownServer() {
 	s.doneChan <- 1
+	<-s.doneDoneChan
 }
 
 func (s *JsonPollingSink) EmitEvent(job string, event string, kvs map[string]string) {

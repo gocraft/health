@@ -31,6 +31,7 @@ AGGREGATE_LOOP:
 	for {
 		select {
 		case <-doneChan:
+			sink.doneDoneChan <- 1
 			break AGGREGATE_LOOP
 		case cmd := <-cmdChan:
 			if cmd.Kind == cmdKindEvent {
