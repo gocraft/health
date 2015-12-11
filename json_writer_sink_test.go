@@ -15,12 +15,12 @@ type testJsonEvent struct {
 	Timestamp   string
 	Err         string
 	Nanoseconds int64
+	Value       float64
 	Status      string
 	Kvs         map[string]string
 }
 
 func TestJsonWriterSinkEvent(t *testing.T) {
-
 	var buf bytes.Buffer
 	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
 	sink := JsonWriterSink{&buf}
@@ -37,7 +37,6 @@ func TestJsonWriterSinkEvent(t *testing.T) {
 }
 
 func TestJsonWriterSinkEventErr(t *testing.T) {
-
 	var buf bytes.Buffer
 	sink := JsonWriterSink{&buf}
 	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
@@ -55,7 +54,6 @@ func TestJsonWriterSinkEventErr(t *testing.T) {
 }
 
 func TestJsonWriterSinkEventTiming(t *testing.T) {
-
 	var buf bytes.Buffer
 	sink := JsonWriterSink{&buf}
 	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
@@ -72,8 +70,24 @@ func TestJsonWriterSinkEventTiming(t *testing.T) {
 	assert.EqualValues(t, 34567890, event.Nanoseconds)
 }
 
-func TestJsonWriterSinkEventComplete(t *testing.T) {
+func TestJsonWriterSinkEventGauge(t *testing.T) {
+	var buf bytes.Buffer
+	sink := JsonWriterSink{&buf}
+	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
+	sink.EmitGauge("myjob", "myevent", 3.14, someKvs)
 
+	event := &testJsonEvent{}
+	dec := json.NewDecoder(&buf)
+	err := dec.Decode(event)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "bar", event.Kvs["foo"])
+	assert.Equal(t, "myjob", event.Job)
+	assert.Equal(t, "myevent", event.Event)
+	assert.EqualValues(t, 3.14, event.Value)
+}
+
+func TestJsonWriterSinkEventComplete(t *testing.T) {
 	var buf bytes.Buffer
 	dec := json.NewDecoder(&buf)
 	for kind, kindStr := range completionStatusToString {
@@ -93,7 +107,6 @@ func TestJsonWriterSinkEventComplete(t *testing.T) {
 }
 
 func BenchmarkJsonWriterSinkEmitBlankEvent(b *testing.B) {
-
 	var buf bytes.Buffer
 	sink := JsonWriterSink{&buf}
 	b.ResetTimer()
@@ -105,7 +118,6 @@ func BenchmarkJsonWriterSinkEmitBlankEvent(b *testing.B) {
 }
 
 func BenchmarkJsonWriterSinkEmitSmallEvent(b *testing.B) {
-
 	var buf bytes.Buffer
 	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
 	sink := JsonWriterSink{&buf}
