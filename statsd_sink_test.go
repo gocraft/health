@@ -102,6 +102,22 @@ func TestStatsDSinkEmitTimingNoPrefix(t *testing.T) {
 	})
 }
 
+func TestStatsDSinkEmitGaugePrefix(t *testing.T) {
+	sink, err := NewStatsDSink(testAddr, "metroid")
+	assert.NoError(t, err)
+	listenFor(t, []string{"metroid.my.event:3.14|g\n", "metroid.my.job.my.event:3.14|g\n"}, func() {
+		sink.EmitGauge("my.job", "my.event", 3.14, nil)
+	})
+}
+
+func TestStatsDSinkEmitGaugeNoPrefix(t *testing.T) {
+	sink, err := NewStatsDSink(testAddr, "")
+	assert.NoError(t, err)
+	listenFor(t, []string{"my.event:3|g\n", "my.job.my.event:3|g\n"}, func() {
+		sink.EmitGauge("my.job", "my.event", 3, nil)
+	})
+}
+
 func TestStatsDSinkEmitCompletePrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
 	assert.NoError(t, err)
