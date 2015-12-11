@@ -59,6 +59,7 @@ func serveJson(hostPort string, data ...interface{}) func() bool {
 	}
 
 	go manners.ListenAndServe(hostPort, f)
+	time.Sleep(10 * time.Millisecond)
 
 	return manners.Close
 }
