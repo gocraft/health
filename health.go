@@ -15,6 +15,8 @@ type EventReceiver interface {
 	EventErrKv(eventName string, err error, kvs map[string]string) error
 	Timing(eventName string, nanoseconds int64)
 	TimingKv(eventName string, nanoseconds int64, kvs map[string]string)
+	Gauge(eventName, value float64)
+	GaugeKv(eventName, value float64, kvs map[string]string)
 }
 
 type Stream struct {
@@ -57,6 +59,7 @@ type Sink interface {
 	EmitEventErr(job string, event string, err error, kvs map[string]string)
 	EmitTiming(job string, event string, nanoseconds int64, kvs map[string]string)
 	EmitComplete(job string, status CompletionStatus, nanoseconds int64, kvs map[string]string)
+	EmitGauge(job string, event string, value float64, kvs map[string]string)
 }
 
 func NewStream() *Stream {
@@ -143,6 +146,20 @@ func (j *Job) TimingKv(eventName string, nanoseconds int64, kvs map[string]strin
 	allKvs := j.mergedKeyValues(kvs)
 	for _, sink := range j.Stream.Sinks {
 		sink.EmitTiming(j.JobName, eventName, nanoseconds, allKvs)
+	}
+}
+
+func (j *Job) Gauge(eventName string, value float64) {
+	allKvs := j.mergedKeyValues(nil)
+	for _, sink := range j.Stream.Sinks {
+		sink.EmitGauge(j.JobName, eventName, value, allKvs)
+	}
+}
+
+func (j *Job) GaugeKv(eventName string, value float64, kvs map[string]string) {
+	allKvs := j.mergedKeyValues(kvs)
+	for _, sink := range j.Stream.Sinks {
+		sink.EmitGauge(j.JobName, eventName, value, allKvs)
 	}
 }
 

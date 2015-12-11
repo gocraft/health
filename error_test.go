@@ -32,7 +32,8 @@ func (s *testSink) EmitEventErr(job string, event string, inputErr error, kvs ma
 		last.WasRaw = true
 	}
 }
-func (s *testSink) EmitTiming(job string, event string, nanos int64, kvs map[string]string) {}
+func (s *testSink) EmitTiming(job string, event string, nanos int64, kvs map[string]string)  {}
+func (s *testSink) EmitGauge(job string, event string, value float64, kvs map[string]string) {}
 func (s *testSink) EmitComplete(job string, status CompletionStatus, nanos int64, kvs map[string]string) {
 }
 
