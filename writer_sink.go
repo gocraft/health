@@ -73,7 +73,7 @@ func (s *WriterSink) EmitGauge(job string, event string, value float64, kvs map[
 	b.WriteString(" event:")
 	b.WriteString(event)
 	b.WriteString(" gauge:")
-	fmt.Fprintf(&b, "%f", value)
+	fmt.Fprintf(&b, "%g", value)
 	writeMapConsistently(&b, kvs)
 	b.WriteRune('\n')
 	s.Writer.Write(b.Bytes())

@@ -129,7 +129,7 @@ func (s *StatsDSink) gauge(key string, value float64) {
 	var msg bytes.Buffer
 	msg.WriteString(key)
 	msg.WriteRune(':')
-	fmt.Fprintf(&msg, "%f", value)
+	fmt.Fprintf(&msg, "%g", value)
 	msg.WriteString("|g\n")
 	s.send(msg.Bytes())
 }

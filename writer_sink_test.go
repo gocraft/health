@@ -14,6 +14,8 @@ var basicEventErrRegexp = regexp.MustCompile("\\[[^\\]]+\\]: job:(.+) event:(.+)
 var kvsEventErrRegexp = regexp.MustCompile("\\[[^\\]]+\\]: job:(.+) event:(.+) err:(.+) kvs:\\[(.+)\\]")
 var basicTimingRegexp = regexp.MustCompile("\\[[^\\]]+\\]: job:(.+) event:(.+) time:(.+)")
 var kvsTimingRegexp = regexp.MustCompile("\\[[^\\]]+\\]: job:(.+) event:(.+) time:(.+) kvs:\\[(.+)\\]")
+var basicGaugeRegexp = regexp.MustCompile("\\[[^\\]]+\\]: job:(.+) event:(.+) gauge:(.+)")
+var kvsGaugeRegexp = regexp.MustCompile("\\[[^\\]]+\\]: job:(.+) event:(.+) gauge:(.+) kvs:\\[(.+)\\]")
 var basicCompletionRegexp = regexp.MustCompile("\\[[^\\]]+\\]: job:(.+) status:(.+) time:(.+)")
 var kvsCompletionRegexp = regexp.MustCompile("\\[[^\\]]+\\]: job:(.+) status:(.+) time:(.+) kvs:\\[(.+)\\]")
 
@@ -145,6 +147,35 @@ func TestWriterSinkEmitTimingKvs(t *testing.T) {
 	assert.Equal(t, "myjob", result[1])
 	assert.Equal(t, "myevent", result[2])
 	assert.Equal(t, "34 ms", result[3])
+	assert.Equal(t, "another:thing wat:ok", result[4])
+}
+
+func TestWriterSinkEmitGaugeBasic(t *testing.T) {
+	var b bytes.Buffer
+	sink := WriterSink{&b}
+	sink.EmitGauge("myjob", "myevent", 3.14, nil)
+
+	str := b.String()
+
+	result := basicGaugeRegexp.FindStringSubmatch(str)
+	assert.Equal(t, 4, len(result))
+	assert.Equal(t, "myjob", result[1])
+	assert.Equal(t, "myevent", result[2])
+	assert.Equal(t, "3.14", result[3])
+}
+
+func TestWriterSinkEmitGaugeKvs(t *testing.T) {
+	var b bytes.Buffer
+	sink := WriterSink{&b}
+	sink.EmitGauge("myjob", "myevent", 0.11, map[string]string{"wat": "ok", "another": "thing"})
+
+	str := b.String()
+
+	result := kvsGaugeRegexp.FindStringSubmatch(str)
+	assert.Equal(t, 5, len(result))
+	assert.Equal(t, "myjob", result[1])
+	assert.Equal(t, "myevent", result[2])
+	assert.Equal(t, "0.11", result[3])
 	assert.Equal(t, "another:thing wat:ok", result[4])
 }
 
