@@ -380,7 +380,6 @@ Request for contributions:
 
 health core:
 
-* A gauge metric type
 * A way to do fine-grained histograms with variable binning.
 
 healthd & healthtop
