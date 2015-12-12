@@ -97,9 +97,9 @@ There are five types of completion statuses:
 * **ValidationError** - Your code was fine, but the user passed in bad inputs, and so the job wasn't completed successfully.
 * **Junk** - The job wasn't completed successfully, but not really because of an Error or ValidationError. For instance, maybe there's just a 404 (not found) or 401 (unauthorized) request to your app. This status code might not apply to all apps.
 
-### Events, Timings, and Errors
+### Events, Timings, Gauges, and Errors
 
-Within jobs, you can emit events, timings, and errors. The first argument of each of these methods is supposed to be a *key*. Camel case with dots is good because it works with other metrics stores like StatsD. Each method has a basic version as well as a version that accepts keys/values.
+Within jobs, you can emit events, timings, gauges, and errors. The first argument of each of these methods is supposed to be a *key*. Camel case with dots is good because it works with other metrics stores like StatsD. Each method has a basic version as well as a version that accepts keys/values.
 
 #### Events
 
@@ -140,7 +140,25 @@ job.TimingKv("fetch_user", time.Since(startTime).Nanoseconds(),
 ```
 
 * For the StatsD sink, we'll send it to StatsD as a timing.
-* The JSON polling will compute a summary of your timings: min, max, avg, stddev, count, sum.
+* The JSON polling sink will compute a summary of your timings: min, max, avg, stddev, count, sum.
+
+#### Gauges
+
+```go
+// Gauges:
+job.Gauge("num_goroutines", numRunningGoroutines()) 
+
+// Timings also support keys/values:
+job.GaugeKv("num_goroutines", numRunningGoroutines(),
+	health.Kvs{"dispatcher": dispatcherStatus()})
+```
+
+* For the WriterSink, a timing is just like logging to a file:
+```
+[2014-12-17T20:36:24.136663759Z]: job:/api/v2/user_stories event:num_goroutines gauge:17 kvs:[request-id:F8a8bQOWmRpO6ky dispatcher:running]
+```
+
+* For the StatsD sink, we'll send it to StatsD as a gauge.
 
 #### Errors
 
@@ -228,6 +246,7 @@ type Sink interface {
 	EmitEvent(job string, event string, kvs map[string]string)
 	EmitEventErr(job string, event string, err error, kvs map[string]string)
 	EmitTiming(job string, event string, nanoseconds int64, kvs map[string]string)
+	EmitGauge(job string, event string, value float64, kvs map[string]string)
 	EmitComplete(job string, status CompletionStatus, nanoseconds int64, kvs map[string]string)
 }
 ```
