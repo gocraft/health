@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNotify(t *testing.T) {
@@ -25,6 +26,7 @@ func TestNotify(t *testing.T) {
 	}
 
 	go http.ListenAndServe(":5051", n)
+	time.Sleep(10 * time.Millisecond)
 
 	err := Notify(config, "users/get", "foo.bar", fmt.Errorf("imanerror"), stack.NewTrace(0), make(map[string]string))
 	if err != nil {
