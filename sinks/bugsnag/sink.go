@@ -59,6 +59,10 @@ func (s *Sink) EmitTiming(job string, event string, nanos int64, kvs map[string]
 	// no-op
 }
 
+func (s *Sink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
+	// no-op
+}
+
 func (s *Sink) EmitComplete(job string, status health.CompletionStatus, nanos int64, kvs map[string]string) {
 	// no-op
 }
