@@ -24,6 +24,7 @@ type IntervalAggregation struct {
 
 type aggregationMaps struct {
 	Timers    map[string]*TimerAggregation `json:"timers"`
+	Gauges    map[string]float64           `json:"gauges"`
 	Events    map[string]int64             `json:"events"`
 	EventErrs map[string]*ErrorCounter     `json:"event_errs"`
 }
@@ -67,6 +68,7 @@ func NewIntervalAggregation(intervalStart time.Time) *IntervalAggregation {
 
 func (am *aggregationMaps) initAggregationMaps() {
 	am.Timers = make(map[string]*TimerAggregation)
+	am.Gauges = make(map[string]float64)
 	am.Events = make(map[string]int64)
 	am.EventErrs = make(map[string]*ErrorCounter)
 }

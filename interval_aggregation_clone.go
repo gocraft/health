@@ -24,6 +24,10 @@ func (am *aggregationMaps) Clone() *aggregationMaps {
 		dup.Events[k] = v
 	}
 
+	for k, v := range am.Gauges {
+		dup.Gauges[k] = v
+	}
+
 	for k, v := range am.Timers {
 		dup.Timers[k] = v.Clone()
 	}

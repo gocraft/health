@@ -17,6 +17,7 @@ func TestJsonPollingSink(t *testing.T) {
 	sink.EmitEvent("myjob", "myevent", nil)
 	sink.EmitEventErr("myjob", "myevent", errors.New("myerr"), nil)
 	sink.EmitTiming("myjob", "myevent", 100, nil)
+	sink.EmitGauge("myjob", "myevent", 3.14, nil)
 	sink.EmitComplete("myjob", Success, 9, nil)
 
 	time.Sleep(10 * time.Millisecond) // we need to make sure we process the above metrics before we get the metrics.
@@ -28,6 +29,7 @@ func TestJsonPollingSink(t *testing.T) {
 
 	intAgg := intervals[0]
 	assert.EqualValues(t, 1, intAgg.Events["myevent"])
+	assert.EqualValues(t, 3.14, intAgg.Gauges["myevent"])
 	assert.EqualValues(t, 1, intAgg.EventErrs["myevent"].Count)
 	assert.EqualValues(t, 1, intAgg.Timers["myevent"].Count)
 	assert.EqualValues(t, 1, intAgg.Jobs["myjob"].Count)

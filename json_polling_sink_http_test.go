@@ -17,6 +17,7 @@ func TestJsonPollingSinkServerSuccess(t *testing.T) {
 	sink.EmitEvent("myjob", "myevent", nil)
 	sink.EmitEventErr("myjob", "myevent", fmt.Errorf("myerr"), nil)
 	sink.EmitTiming("myjob", "myevent", 100, nil)
+	sink.EmitGauge("myjob", "myevent", 3.14, nil)
 	sink.EmitComplete("myjob", Success, 9, nil)
 
 	time.Sleep(10 * time.Millisecond)

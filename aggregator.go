@@ -40,6 +40,8 @@ AGGREGATE_LOOP:
 				agg.EmitEventErr(cmd.Job, cmd.Event, cmd.Err)
 			} else if cmd.Kind == cmdKindTiming {
 				agg.EmitTiming(cmd.Job, cmd.Event, cmd.Nanos)
+			} else if cmd.Kind == cmdKindGauge {
+				agg.EmitGauge(cmd.Job, cmd.Event, cmd.Value)
 			} else if cmd.Kind == cmdKindComplete {
 				agg.EmitComplete(cmd.Job, cmd.Status, cmd.Nanos)
 			}
@@ -101,6 +103,14 @@ func (a *aggregator) EmitTiming(job string, event string, nanos int64) {
 	jobAgg := intAgg.getJobAggregation(job)
 	jt := jobAgg.getTimers(event)
 	jt.ingest(nanos)
+	intAgg.SerialNumber++
+}
+
+func (a *aggregator) EmitGauge(job string, event string, value float64) {
+	intAgg := a.getIntervalAggregation()
+	intAgg.Gauges[event] = value
+	jobAgg := intAgg.getJobAggregation(job)
+	jobAgg.Gauges[event] = value
 	intAgg.SerialNumber++
 }
 
