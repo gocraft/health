@@ -98,6 +98,11 @@ func (s *Sink) EmitTiming(job string, event string, nanos int64, kvs map[string]
 	s.emitHistogram(job, event, nanos, kvs)
 }
 
+func (s *Sink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
+	// TODO: implement this
+	// (prometheus is a contributed library so I can't easily test it)
+}
+
 func (s *Sink) EmitComplete(job string, status health.CompletionStatus, nanos int64, kvs map[string]string) {
 	s.emitHistogram(job, status.String(), nanos, kvs)
 }
