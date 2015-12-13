@@ -2,13 +2,13 @@ package prometheus
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
-	"io/ioutil"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/gocraft/health"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSinkEmitEvent(t *testing.T) {
@@ -20,7 +20,7 @@ func TestSinkEmitEvent(t *testing.T) {
 	}
 
 	s := NewSink(config)
-	defer s.ShutdownServer()
+	defer s.Stop()
 
 	h := prometheusHandler{
 		PayloadChan: make(chan *payload),
@@ -45,7 +45,7 @@ func TestSinkEmitTiming(t *testing.T) {
 	}
 
 	s := NewSink(config)
-	defer s.ShutdownServer()
+	defer s.Stop()
 
 	h := prometheusHandler{
 		PayloadChan: make(chan *payload),
@@ -71,7 +71,7 @@ func TestSinkEmitComplete(t *testing.T) {
 	}
 
 	s := NewSink(config)
-	defer s.ShutdownServer()
+	defer s.Stop()
 
 	h := prometheusHandler{
 		PayloadChan: make(chan *payload),
@@ -87,11 +87,10 @@ func TestSinkEmitComplete(t *testing.T) {
 	assert.Contains(t, string(p.Body), "handler")
 }
 
-
 type payload struct {
-	Url string
+	Url      string
 	Hostname string
-	Body []byte
+	Body     []byte
 }
 
 type prometheusHandler struct {

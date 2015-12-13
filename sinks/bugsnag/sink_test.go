@@ -20,7 +20,7 @@ func TestSink(t *testing.T) {
 	}
 
 	s := NewSink(config)
-	defer s.ShutdownServer()
+	defer s.Stop()
 
 	n := notifyHandler{
 		PayloadChan: make(chan *payload, 2),

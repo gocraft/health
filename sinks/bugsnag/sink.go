@@ -67,7 +67,7 @@ func (s *Sink) EmitComplete(job string, status health.CompletionStatus, nanos in
 	// no-op
 }
 
-func (s *Sink) ShutdownServer() {
+func (s *Sink) Stop() {
 	s.doneChan <- 1
 }
 

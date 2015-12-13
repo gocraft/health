@@ -107,7 +107,7 @@ func (s *Sink) EmitComplete(job string, status health.CompletionStatus, nanos in
 	s.emitHistogram(job, status.String(), nanos, kvs)
 }
 
-func (s *Sink) ShutdownServer() {
+func (s *Sink) Stop() {
 	s.doneChan <- true
 	<-s.doneDoneChan
 }

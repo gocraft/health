@@ -23,7 +23,7 @@ func TestJsonPollingSink(t *testing.T) {
 	time.Sleep(10 * time.Millisecond) // we need to make sure we process the above metrics before we get the metrics.
 	intervals := sink.GetMetrics()
 
-	sink.ShutdownServer()
+	sink.Stop()
 
 	assert.Equal(t, 1, len(intervals))
 

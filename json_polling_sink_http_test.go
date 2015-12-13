@@ -12,7 +12,7 @@ import (
 
 func TestJsonPollingSinkServerSuccess(t *testing.T) {
 	sink := NewJsonPollingSink(time.Minute, time.Minute*5)
-	defer sink.ShutdownServer()
+	defer sink.Stop()
 
 	sink.EmitEvent("myjob", "myevent", nil)
 	sink.EmitEventErr("myjob", "myevent", fmt.Errorf("myerr"), nil)
@@ -38,7 +38,7 @@ func TestJsonPollingSinkServerSuccess(t *testing.T) {
 
 func TestJsonPollingSinkServerNotFound(t *testing.T) {
 	sink := NewJsonPollingSink(time.Minute, time.Minute*5)
-	defer sink.ShutdownServer()
+	defer sink.Stop()
 
 	recorder := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "/wat", nil)
