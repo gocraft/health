@@ -164,6 +164,43 @@ func TestEmitTiming(t *testing.T) {
 	assert.EqualValues(t, 9, tAgg.NanosMax)
 }
 
+func TestEmitGauge(t *testing.T) {
+	setNowMock("2011-09-09T23:36:13Z")
+	defer resetNowMock()
+	a := newAggregator(time.Minute, time.Minute*5)
+	a.EmitGauge("foo", "bar", 100)
+
+	assert.Equal(t, 1, len(a.intervalAggregations))
+
+	intAgg := a.intervalAggregations[0]
+	assert.NotNil(t, intAgg.Gauges)
+	assert.EqualValues(t, 1, intAgg.SerialNumber)
+	v, ok := intAgg.Gauges["bar"]
+	assert.True(t, ok)
+	assert.Equal(t, 100.0, v)
+
+	assert.NotNil(t, intAgg.Jobs)
+	jobAgg := intAgg.Jobs["foo"]
+	assert.NotNil(t, jobAgg)
+	assert.NotNil(t, jobAgg.Gauges)
+	v, ok = intAgg.Gauges["bar"]
+	assert.True(t, ok)
+	assert.Equal(t, 100.0, v)
+
+	// Another gauge:
+	a.EmitGauge("baz", "bar", 3.14) // note: diff job
+
+	intAgg = a.intervalAggregations[0]
+	v, ok = intAgg.Gauges["bar"]
+	assert.True(t, ok)
+	assert.Equal(t, 3.14, v)
+
+	jobAgg = intAgg.Jobs["baz"]
+	v, ok = intAgg.Gauges["bar"]
+	assert.True(t, ok)
+	assert.Equal(t, 3.14, v)
+}
+
 func TestEmitComplete(t *testing.T) {
 	setNowMock("2011-09-09T23:36:13Z")
 	defer resetNowMock()

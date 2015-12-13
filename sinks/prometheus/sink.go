@@ -25,14 +25,15 @@ type Config struct {
 	Interval time.Duration
 
 	// Prometheus CountersVec. key is built by `job + event`. Required for predefined Counters.
-	CounterVecs map[string]*prometheus.CounterVec
+	CounterVecs   map[string]*prometheus.CounterVec
 	HistogramVecs map[string]*prometheus.HistogramVec
 }
 
 // This sink emits to a Prometheus pushgateway daemon
 type Sink struct {
 	*Config
-	doneFlag bool
+	doneChan     chan bool
+	doneDoneChan chan bool
 }
 
 func NewSink(config *Config) *Sink {
@@ -57,7 +58,7 @@ func NewSink(config *Config) *Sink {
 		config.HistogramVecs = map[string]*prometheus.HistogramVec{}
 	}
 
-	s := &Sink{Config: config, doneFlag: false}
+	s := &Sink{Config: config, doneChan: make(chan bool), doneDoneChan: make(chan bool)}
 
 	go processingLoop(s)
 
@@ -97,21 +98,32 @@ func (s *Sink) EmitTiming(job string, event string, nanos int64, kvs map[string]
 	s.emitHistogram(job, event, nanos, kvs)
 }
 
+func (s *Sink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
+	// TODO: implement this
+	// (prometheus is a contributed library so I can't easily test it)
+}
+
 func (s *Sink) EmitComplete(job string, status health.CompletionStatus, nanos int64, kvs map[string]string) {
 	s.emitHistogram(job, status.String(), nanos, kvs)
 }
 
 func (s *Sink) ShutdownServer() {
-	s.doneFlag = true
+	s.doneChan <- true
+	<-s.doneDoneChan
 }
 
 // Push current metrics each minute
 func processingLoop(sink *Sink) {
 	c := time.Tick(sink.Config.Interval)
-	for _ = range c {
-		prometheus.Push(sink.Config.Job, sink.Config.Hostname, sink.Config.Endpoint)
-		if sink.doneFlag {
-			return
+
+PROMETHEUS_PROCESSING_LOOP:
+	for {
+		select {
+		case <-c:
+			prometheus.Push(sink.Config.Job, sink.Config.Hostname, sink.Config.Endpoint)
+		case <-sink.doneChan:
+			sink.doneDoneChan <- true
+			break PROMETHEUS_PROCESSING_LOOP
 		}
 	}
 }

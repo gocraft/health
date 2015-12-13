@@ -62,6 +62,12 @@ func (s *StatsDSink) EmitTiming(job string, event string, nanos int64, kvs map[s
 	s.measure(key2, nanos)
 }
 
+func (s *StatsDSink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
+	key1, key2 := s.eventKeys(job, event, "")
+	s.gauge(key1, value)
+	s.gauge(key2, value)
+}
+
 // if job is "my.job", this will emit "my.job.xyz" where xyz is "success", etc (see completionStatusToString)
 func (s *StatsDSink) EmitComplete(job string, status CompletionStatus, nanos int64, kvs map[string]string) {
 	var b bytes.Buffer
@@ -116,6 +122,15 @@ func (s *StatsDSink) measure(key string, nanos int64) {
 	msg.WriteRune(':')
 	msg.WriteString(fmt.Sprintf("%f", float64(nanos)/float64(time.Millisecond)))
 	msg.WriteString("|ms\n")
+	s.send(msg.Bytes())
+}
+
+func (s *StatsDSink) gauge(key string, value float64) {
+	var msg bytes.Buffer
+	msg.WriteString(key)
+	msg.WriteRune(':')
+	fmt.Fprintf(&msg, "%g", value)
+	msg.WriteString("|g\n")
 	s.send(msg.Bytes())
 }
 

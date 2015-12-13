@@ -64,6 +64,21 @@ func (s *WriterSink) EmitTiming(job string, event string, nanos int64, kvs map[s
 	s.Writer.Write(b.Bytes())
 }
 
+func (s *WriterSink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
+	var b bytes.Buffer
+	b.WriteRune('[')
+	b.WriteString(timestamp())
+	b.WriteString("]: job:")
+	b.WriteString(job)
+	b.WriteString(" event:")
+	b.WriteString(event)
+	b.WriteString(" gauge:")
+	fmt.Fprintf(&b, "%g", value)
+	writeMapConsistently(&b, kvs)
+	b.WriteRune('\n')
+	s.Writer.Write(b.Bytes())
+}
+
 func (s *WriterSink) EmitComplete(job string, status CompletionStatus, nanos int64, kvs map[string]string) {
 	var b bytes.Buffer
 	b.WriteRune('[')

@@ -43,6 +43,10 @@ func (intoAm *aggregationMaps) merge(fromAm *aggregationMaps) {
 		intoAm.Events[k] += v
 	}
 
+	for k, v := range fromAm.Gauges {
+		intoAm.Gauges[k] = v
+	}
+
 	for k, v := range fromAm.Timers {
 		if existingTimer, ok := intoAm.Timers[k]; ok {
 			existingTimer.merge(v)
