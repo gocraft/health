@@ -1,7 +1,6 @@
 package runtime_metrics
 
 import (
-	"runtime"
 	"testing"
 )
 
@@ -15,13 +14,10 @@ func TestRuntimeMetrics(t *testing.T) {
 	}
 	m := NewRuntimeMetrics(tr, nil)
 	m.Start()
-
-	runtime.GC()
-
 	defer m.Stop()
 	m.Report()
 
-	expectedKeys := []string{"heap_objects", "alloc", "num_gc", "gc_cpu_fraction", "pause_total_ns", "gc_pause_quantile_50", "gc_pause_quantile_max", "num_cgo_call", "num_goroutines"}
+	expectedKeys := []string{"heap_objects", "alloc", "num_gc", "next_gc", "gc_cpu_fraction", "pause_total_ns", "gc_pause_quantile_50", "gc_pause_quantile_max", "num_cgo_call", "num_goroutines", "num_fds_used"}
 
 	for _, k := range expectedKeys {
 		if _, ok := tr.gauges[k]; !ok {

@@ -22,7 +22,7 @@ type Options struct {
 	GCQuantile bool
 	Goroutines bool
 	Cgo        bool
-	FD         bool
+	FDs        bool
 }
 
 func NewRuntimeMetrics(stream health.EventReceiver, options *Options) *RuntimeMetrics {
@@ -82,6 +82,7 @@ func (rm *RuntimeMetrics) Report() {
 	if rm.options.GC {
 		rm.reportGauge("pause_total_ns", float64(mem.PauseTotalNs))
 		rm.reportGauge("num_gc", float64(mem.NumGC))
+		rm.reportGauge("next_gc", float64(mem.NextGC))
 		rm.reportGauge("gc_cpu_fraction", mem.GCCPUFraction)
 	}
 
@@ -99,6 +100,12 @@ func (rm *RuntimeMetrics) Report() {
 
 	if rm.options.Cgo {
 		rm.reportGauge("num_cgo_call", float64(runtime.NumCgoCall()))
+	}
+
+	if rm.options.FDs {
+		if num, err := getFDUsage(); err == nil {
+			rm.reportGauge("num_fds_used", float64(num))
+		}
 	}
 }
 
