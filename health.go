@@ -15,8 +15,8 @@ type EventReceiver interface {
 	EventErrKv(eventName string, err error, kvs map[string]string) error
 	Timing(eventName string, nanoseconds int64)
 	TimingKv(eventName string, nanoseconds int64, kvs map[string]string)
-	Gauge(eventName, value float64)
-	GaugeKv(eventName, value float64, kvs map[string]string)
+	Gauge(eventName string, value float64)
+	GaugeKv(eventName string, value float64, kvs map[string]string)
 }
 
 type Stream struct {
