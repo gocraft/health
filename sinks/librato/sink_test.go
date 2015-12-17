@@ -19,7 +19,6 @@ func TestNewShutdown(t *testing.T) {
 
 func TestEmit(t *testing.T) {
 	s := New("a", "b", "c")
-	defer s.Stop()
 
 	s.EmitEvent("cool", "story", nil)
 	s.EmitEvent("cool", "story", nil)
@@ -35,6 +34,7 @@ func TestEmit(t *testing.T) {
 	s.EmitComplete("tylersmart", health.Junk, 8000000, nil)
 
 	time.Sleep(3 * time.Millisecond)
+	s.Stop()
 
 	assert.Equal(t, int64(3), s.counters["c.story.count"])
 	assert.Equal(t, int64(3), s.counters["c.cool.story.count"])
