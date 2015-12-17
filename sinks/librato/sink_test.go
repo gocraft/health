@@ -1,4 +1,4 @@
-package librato_sink
+package librato
 
 import (
 	"fmt"

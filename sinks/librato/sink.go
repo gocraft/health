@@ -1,4 +1,4 @@
-package librato_sink
+package librato
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 
 type SanitizationFunc func(string) string
 
-type LibratoSink struct {
+type Sink struct {
 	SanitizationFunc
 	Source      string
 	FlushPeriod time.Duration
@@ -85,10 +85,10 @@ type emitCmd struct {
 	Status health.CompletionStatus
 }
 
-func New(user, apiKey, prefix string) *LibratoSink {
+func New(user, apiKey, prefix string) *Sink {
 	const buffSize = 4096 // random-ass-guess
 
-	s := &LibratoSink{
+	s := &Sink{
 		SanitizationFunc: sanitizeKey,
 		FlushPeriod:      15 * time.Second,
 		cmdChan:          make(chan *emitCmd, buffSize),
@@ -109,32 +109,32 @@ func New(user, apiKey, prefix string) *LibratoSink {
 	return s
 }
 
-func (s *LibratoSink) Shutdown() {
+func (s *Sink) Shutdown() {
 	s.doneChan <- 1
 	<-s.doneDoneChan
 }
 
-func (s *LibratoSink) EmitEvent(job string, event string, kvs map[string]string) {
+func (s *Sink) EmitEvent(job string, event string, kvs map[string]string) {
 	s.cmdChan <- &emitCmd{Kind: cmdKindEvent, Job: job, Event: event}
 }
 
-func (s *LibratoSink) EmitEventErr(job string, event string, inputErr error, kvs map[string]string) {
+func (s *Sink) EmitEventErr(job string, event string, inputErr error, kvs map[string]string) {
 	s.cmdChan <- &emitCmd{Kind: cmdKindEventErr, Job: job, Event: event, Err: inputErr}
 }
 
-func (s *LibratoSink) EmitTiming(job string, event string, nanos int64, kvs map[string]string) {
+func (s *Sink) EmitTiming(job string, event string, nanos int64, kvs map[string]string) {
 	s.cmdChan <- &emitCmd{Kind: cmdKindTiming, Job: job, Event: event, Nanos: nanos}
 }
 
-func (s *LibratoSink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
+func (s *Sink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
 	s.cmdChan <- &emitCmd{Kind: cmdKindGauge, Job: job, Event: event, Value: value}
 }
 
-func (s *LibratoSink) EmitComplete(job string, status health.CompletionStatus, nanos int64, kvs map[string]string) {
+func (s *Sink) EmitComplete(job string, status health.CompletionStatus, nanos int64, kvs map[string]string) {
 	s.cmdChan <- &emitCmd{Kind: cmdKindComplete, Job: job, Status: status, Nanos: nanos}
 }
 
-func (s *LibratoSink) start() {
+func (s *Sink) start() {
 	cmdChan := s.cmdChan
 	doneChan := s.doneChan
 	ticker := time.Tick(s.FlushPeriod)
@@ -163,32 +163,32 @@ LIBRATO_LOOP:
 	}
 }
 
-func (s *LibratoSink) processEvent(job string, event string) {
+func (s *Sink) processEvent(job string, event string) {
 	key1, key2 := s.eventKeys(job, event, "count")
 	s.inc(key1)
 	s.inc(key2)
 }
 
-func (s *LibratoSink) processEventErr(job string, event string, err error) {
+func (s *Sink) processEventErr(job string, event string, err error) {
 	key1, key2 := s.eventKeys(job, event, "error.count")
 	s.inc(key1)
 	s.inc(key2)
 }
 
-func (s *LibratoSink) processTiming(job string, event string, nanos int64) {
+func (s *Sink) processTiming(job string, event string, nanos int64) {
 	key1, key2 := s.eventKeys(job, event, "timing")
 	ms := float64(nanos) / float64(time.Millisecond)
 	s.measure(key1, ms)
 	s.measure(key2, ms)
 }
 
-func (s *LibratoSink) processGauge(job string, event string, value float64) {
+func (s *Sink) processGauge(job string, event string, value float64) {
 	key1, key2 := s.eventKeys(job, event, "gauge")
 	s.measure(key1, value)
 	s.measure(key2, value)
 }
 
-func (s *LibratoSink) processComplete(job string, status health.CompletionStatus, nanos int64) {
+func (s *Sink) processComplete(job string, status health.CompletionStatus, nanos int64) {
 	var b bytes.Buffer
 
 	if s.prefix != "" {
@@ -204,7 +204,7 @@ func (s *LibratoSink) processComplete(job string, status health.CompletionStatus
 	s.measure(b.String(), ms)
 }
 
-func (s *LibratoSink) eventKeys(job, event, suffix string) (string, string) {
+func (s *Sink) eventKeys(job, event, suffix string) (string, string) {
 	var key1 bytes.Buffer // event
 	var key2 bytes.Buffer // job.event
 
@@ -230,11 +230,11 @@ func (s *LibratoSink) eventKeys(job, event, suffix string) (string, string) {
 	return key1.String(), key2.String()
 }
 
-func (s *LibratoSink) inc(key string) {
+func (s *Sink) inc(key string) {
 	s.counters[key] += 1
 }
 
-func (s *LibratoSink) measure(key string, value float64) {
+func (s *Sink) measure(key string, value float64) {
 	g, ok := s.timers[key]
 	if !ok {
 		g = &gauge{Min: value, Max: value, Sum: value, Count: 1, SumSquares: value * value, Attributes: defaultTimerAttributes}
@@ -253,7 +253,7 @@ func (s *LibratoSink) measure(key string, value float64) {
 	}
 }
 
-func (s *LibratoSink) purge() {
+func (s *Sink) purge() {
 	if err := s.send(); err != nil {
 		fmt.Println("Error sending to librato: ", err)
 	}
@@ -261,7 +261,7 @@ func (s *LibratoSink) purge() {
 	s.counters = make(map[string]int64)
 }
 
-func (s *LibratoSink) send() error {
+func (s *Sink) send() error {
 
 	// no data? don't send anything to librato
 	if len(s.timers) == 0 && len(s.counters) == 0 {
