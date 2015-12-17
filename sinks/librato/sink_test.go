@@ -10,7 +10,7 @@ import (
 
 func TestNewShutdown(t *testing.T) {
 	s := New("a", "b", "c")
-	defer s.Shutdown()
+	defer s.Stop()
 
 	assert.Equal(t, "a", s.libratoUser)
 	assert.Equal(t, "b", s.libratoApiKey)
@@ -19,7 +19,7 @@ func TestNewShutdown(t *testing.T) {
 
 func TestEmit(t *testing.T) {
 	s := New("a", "b", "c")
-	defer s.Shutdown()
+	defer s.Stop()
 
 	s.EmitEvent("cool", "story", nil)
 	s.EmitEvent("cool", "story", nil)

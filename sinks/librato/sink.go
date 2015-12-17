@@ -109,7 +109,7 @@ func New(user, apiKey, prefix string) *Sink {
 	return s
 }
 
-func (s *Sink) Shutdown() {
+func (s *Sink) Stop() {
 	s.doneChan <- 1
 	<-s.doneDoneChan
 }
