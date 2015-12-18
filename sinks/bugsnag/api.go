@@ -37,10 +37,10 @@ type payload struct {
 	APIKey string `json:"apiKey"`
 
 	Notifier struct {
-			   Name    string `json:"name"`
-			   Version string `json:"version"`
-			   URL     string `json:"url"`
-		   } `json:"notifier"`
+		Name    string `json:"name"`
+		Version string `json:"version"`
+		URL     string `json:"url"`
+	} `json:"notifier"`
 
 	Events []payloadEvent `json:"events"`
 }
@@ -58,14 +58,14 @@ type payloadEvent struct {
 	// user
 
 	App struct {
-					   // version
-					   ReleaseStage string `json:"releaseStage"`
-				   } `json:"app"`
+		// version
+		ReleaseStage string `json:"releaseStage"`
+	} `json:"app"`
 
 	Device struct {
-					   //osVersion
-					   Hostname string `json:"hostname"`
-				   } `json:"device"`
+		//osVersion
+		Hostname string `json:"hostname"`
+	} `json:"device"`
 
 	// meta data
 
