@@ -138,13 +138,28 @@ func (s *StatsDSink) send(msg []byte) {
 	s.conn.Write(msg)
 }
 
+func shouldSanitize(r rune) bool {
+	switch r {
+	case '|', ':':
+		return true
+	}
+	return false
+}
+
 func sanitizeKey(k string) string {
+	for _, r := range k {
+		if shouldSanitize(r) {
+			goto SANITIZE
+		}
+	}
+	return k
+SANITIZE:
 	var key bytes.Buffer
-	for _, c := range k {
-		if c == '|' || c == ':' {
+	for _, r := range k {
+		if shouldSanitize(r) {
 			key.WriteRune('$')
 		} else {
-			key.WriteRune(c)
+			key.WriteRune(r)
 		}
 	}
 	return key.String()

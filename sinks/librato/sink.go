@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gocraft/health"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/gocraft/health"
 )
 
 type SanitizationFunc func(string) string
@@ -309,14 +310,41 @@ func (s *Sink) send() error {
 	return err
 }
 
+// valid librato charactors: A-Za-z0-9.:-_
+func shouldSanitize(r rune) bool {
+	switch {
+	case 'A' <= r && r <= 'Z':
+		fallthrough
+	case 'a' <= r && r <= 'z':
+		fallthrough
+	case '0' <= r && r <= '9':
+		fallthrough
+	case r == '.':
+		fallthrough
+	case r == ':':
+		fallthrough
+	case r == '-':
+		fallthrough
+	case r == '_':
+		return false
+	}
+	return true
+}
+
 func sanitizeKey(k string) string {
+	for _, r := range k {
+		if shouldSanitize(r) {
+			goto SANITIZE
+		}
+	}
+	return k
+SANITIZE:
 	var key bytes.Buffer
-	for _, c := range k {
-		// valid librato charactors: A-Za-z0-9.:-_
-		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '.') || (c == ':') || (c == '-') || (c == '_') {
-			key.WriteRune(c)
-		} else {
+	for _, r := range k {
+		if shouldSanitize(r) {
 			key.WriteRune('_')
+		} else {
+			key.WriteRune(r)
 		}
 	}
 	return key.String()
