@@ -13,7 +13,7 @@ import (
 //   - periodic purge
 //   - 1440 limit
 
-type SanitizationFunc func(string) string
+type StatsDSinkSanitizationFunc func(string) string
 
 type eventKey struct {
 	job    string
@@ -27,7 +27,7 @@ type prefixBuffer struct {
 }
 
 type StatsDSink struct {
-	SanitizationFunc SanitizationFunc
+	SanitizationFunc StatsDSinkSanitizationFunc
 
 	cmdChan       chan statsdEmitCmd
 	drainDoneChan chan int
