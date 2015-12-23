@@ -5,9 +5,12 @@ import (
 	"github.com/gocraft/health"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 )
+
+// TODO:
+// - better sanitization func
+// - tests
 
 type SanitizationFunc func(string) string
 
@@ -23,9 +26,11 @@ type prefixBuffer struct {
 }
 
 type Sink struct {
-	cmdPool       sync.Pool
+	SanitizationFunc SanitizationFunc
+
 	cmdChan       chan emitCmd
 	drainDoneChan chan int
+	stopDoneChan  chan int
 
 	// Prefix is something like "metroid"
 	// Events emitted to StatsD would be metroid.myevent.wat
@@ -33,10 +38,8 @@ type Sink struct {
 	// It can be "", that's fine.
 	prefix      string
 	flushPeriod time.Duration
-	ticker      *time.Ticker
 
-	udpBuf     bytes.Buffer
-	scratchBuf bytes.Buffer
+	udpBuf bytes.Buffer
 
 	udpConn *net.UDPConn
 	udpAddr *net.UDPAddr
@@ -45,7 +48,9 @@ type Sink struct {
 	// (suffix is "error" for EventErr)
 	events map[eventKey][]byte
 
-	// map of {job,event,""}
+	// map of {job,event,suffix} to a re-usable buffer prefixed with the key.
+	// Since each timing has a unique component (the time), we'll truncate to the prefix, write the timing,
+	// and write the statsD suffix (eg, "|ms\n"). Then copy that to the UDP buffer.
 	timingsAndGauges map[eventKey]prefixBuffer
 }
 
@@ -59,6 +64,7 @@ const (
 	cmdKindComplete
 	cmdKindFlush
 	cmdKindDrain
+	cmdKindStop
 )
 
 type emitCmd struct {
@@ -85,35 +91,26 @@ func New(addr, prefix string) (*Sink, error) {
 	}
 
 	s := &Sink{
+		SanitizationFunc: sanitizeKey,
 		udpConn:          c.(*net.UDPConn),
 		udpAddr:          ra,
 		cmdChan:          make(chan emitCmd, cmdChanBuffSize),
 		drainDoneChan:    make(chan int),
+		stopDoneChan:     make(chan int),
 		prefix:           prefix,
 		flushPeriod:      100 * time.Millisecond,
 		events:           make(map[eventKey][]byte),
 		timingsAndGauges: make(map[eventKey]prefixBuffer),
 	}
 
-	s.cmdPool.New = func() interface{} {
-		return &emitCmd{}
-	}
-
 	go s.loop()
-
-	s.ticker = time.NewTicker(s.flushPeriod)
-	go func(ticker *time.Ticker) {
-		for _ = range ticker.C {
-			s.cmdChan <- emitCmd{Kind: cmdKindFlush}
-		}
-	}(s.ticker)
 
 	return s, nil
 }
 
 func (s *Sink) Stop() {
-	s.ticker.Stop() //todo: does this close channel?
-	close(s.cmdChan)
+	s.cmdChan <- emitCmd{Kind: cmdKindStop}
+	<-s.stopDoneChan
 }
 
 func (s *Sink) Drain() {
@@ -143,36 +140,53 @@ func (s *Sink) EmitComplete(job string, status health.CompletionStatus, nanos in
 
 func (s *Sink) loop() {
 	cmdChan := s.cmdChan
+
+	ticker := time.NewTicker(s.flushPeriod)
+	go func() {
+		for _ = range ticker.C {
+			cmdChan <- emitCmd{Kind: cmdKindFlush}
+		}
+	}()
+
+LOOP:
 	for cmd := range cmdChan {
-		if cmd.Kind == cmdKindDrain {
+		switch cmd.Kind {
+		case cmdKindDrain:
 		DRAIN_LOOP:
 			for {
 				select {
 				case cmd := <-cmdChan:
 					s.processCmd(&cmd)
 				default:
-					// todo; don't forget to flush buffer
+					s.flush()
 					s.drainDoneChan <- 1
 					break DRAIN_LOOP
 				}
 			}
-		} else {
+		case cmdKindStop:
+			s.stopDoneChan <- 1
+			break LOOP
+		case cmdKindFlush:
+			s.flush()
+		default:
 			s.processCmd(&cmd)
 		}
 	}
+
+	ticker.Stop()
 }
 
 func (s *Sink) processCmd(cmd *emitCmd) {
-	if cmd.Kind == cmdKindEvent {
+	switch cmd.Kind {
+	case cmdKindEvent:
 		s.processEvent(cmd.Job, cmd.Event)
-		//s.cmdPool.Put(cmd)
-	} else if cmd.Kind == cmdKindEvent {
+	case cmdKindEventErr:
 		s.processEventErr(cmd.Job, cmd.Event)
-	} else if cmd.Kind == cmdKindTiming {
+	case cmdKindTiming:
 		s.processTiming(cmd.Job, cmd.Event, cmd.Nanos)
-	} else if cmd.Kind == cmdKindGauge {
+	case cmdKindGauge:
 		s.processGauge(cmd.Job, cmd.Event, cmd.Value)
-	} else if cmd.Kind == cmdKindComplete {
+	case cmdKindComplete:
 		s.processComplete(cmd.Job, cmd.Status, cmd.Nanos)
 	}
 }
@@ -202,7 +216,33 @@ func (s *Sink) processGauge(job string, event string, value float64) {
 }
 
 func (s *Sink) processComplete(job string, status health.CompletionStatus, nanos int64) {
+	statusString := status.String()
+	key := eventKey{job, "", statusString}
 
+	b, ok := s.timingsAndGauges[key]
+	if !ok {
+		b.Buffer = &bytes.Buffer{}
+		s.writeSanitizedKeys(b.Buffer, s.prefix, job, statusString)
+		b.WriteByte(':')
+		b.prefixLen = b.Len()
+
+		// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
+		b.Grow(16)
+		s.timingsAndGauges[key] = b
+	}
+
+	b.Truncate(b.prefixLen)
+	writeNanos(b.Buffer, nanos)
+	b.WriteString("|ms\n")
+
+	s.writeStatsDMetric(b.Bytes())
+}
+
+func (s *Sink) flush() {
+	if s.udpBuf.Len() > 0 {
+		s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
+		s.udpBuf.Truncate(0)
+	}
 }
 
 // assumes b is a well-formed statsd metric like "job.event:1|c\n" (including newline)
@@ -230,7 +270,7 @@ func (s *Sink) eventBytes(job, event, suffix string) ([]byte, []byte) {
 	jobEventBytes, ok := s.events[key]
 	if !ok {
 		var b bytes.Buffer
-		writeJobEventKey(&b, job, event, s.prefix)
+		s.writeSanitizedKeys(&b, s.prefix, job, event, suffix)
 		b.WriteString(":1|c\n")
 
 		jobEventBytes = b.Bytes()
@@ -241,7 +281,7 @@ func (s *Sink) eventBytes(job, event, suffix string) ([]byte, []byte) {
 	eventBytes, ok := s.events[key]
 	if !ok {
 		var b bytes.Buffer
-		writeEventKey(&b, event, s.prefix)
+		s.writeSanitizedKeys(&b, s.prefix, event, suffix)
 		b.WriteString(":1|c\n")
 
 		eventBytes = b.Bytes()
@@ -257,7 +297,7 @@ func (s Sink) timingBytes(job, event string, nanos int64) ([]byte, []byte) {
 	b, ok := s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
-		writeJobEventKey(b.Buffer, job, event, s.prefix)
+		s.writeSanitizedKeys(b.Buffer, s.prefix, job, event)
 		b.WriteByte(':')
 		b.prefixLen = b.Len()
 
@@ -275,7 +315,7 @@ func (s Sink) timingBytes(job, event string, nanos int64) ([]byte, []byte) {
 	b, ok = s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
-		writeEventKey(b.Buffer, event, s.prefix)
+		s.writeSanitizedKeys(b.Buffer, s.prefix, event)
 		b.WriteByte(':')
 		b.prefixLen = b.Len()
 
@@ -298,7 +338,7 @@ func (s Sink) gaugeBytes(job, event string, value float64) ([]byte, []byte) {
 	b, ok := s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
-		writeJobEventKey(b.Buffer, job, event, s.prefix)
+		s.writeSanitizedKeys(b.Buffer, s.prefix, job, event)
 		b.WriteByte(':')
 		b.prefixLen = b.Len()
 
@@ -316,7 +356,7 @@ func (s Sink) gaugeBytes(job, event string, value float64) ([]byte, []byte) {
 	b, ok = s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
-		writeEventKey(b.Buffer, event, s.prefix)
+		s.writeSanitizedKeys(b.Buffer, s.prefix, event)
 		b.WriteByte(':')
 		b.prefixLen = b.Len()
 
@@ -333,31 +373,36 @@ func (s Sink) gaugeBytes(job, event string, value float64) ([]byte, []byte) {
 	return jobEventBytes, eventBytes
 }
 
-func writeJobEventKey(b *bytes.Buffer, job, event, prefix string) {
-	if prefix != "" {
-		b.WriteString(prefix)
-		b.WriteByte('.')
+func (s *Sink) writeSanitizedKeys(b *bytes.Buffer, keys ...string) {
+	needDot := false
+	for _, k := range keys {
+		if k != "" {
+			if needDot {
+				b.WriteByte('.')
+			}
+			b.WriteString(s.SanitizationFunc(k))
+			needDot = true
+		}
 	}
-
-	b.WriteString(job)
-	b.WriteByte('.')
-	b.WriteString(event)
-}
-
-func writeEventKey(b *bytes.Buffer, event, prefix string) {
-	if prefix != "" {
-		b.WriteString(prefix)
-		b.WriteByte('.')
-	}
-
-	b.WriteString(event)
 }
 
 func writeNanos(b *bytes.Buffer, nanos int64) {
-	if nanos > 10e6 {
+	if nanos >= 10e6 {
 		// More than 10 milliseconds. We'll just print as an integer
 		strconv.AppendInt(b.Bytes(), nanos/1e6, 10)
 	} else {
 		strconv.AppendFloat(b.Bytes(), float64(nanos)/float64(time.Millisecond), 'f', 2, 64)
 	}
+}
+
+func sanitizeKey(k string) string {
+	var key bytes.Buffer
+	for _, c := range k {
+		if c == '|' || c == ':' {
+			key.WriteByte('$')
+		} else {
+			key.WriteRune(c)
+		}
+	}
+	return key.String()
 }
