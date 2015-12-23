@@ -8,10 +8,11 @@ import (
 )
 
 // TODO:
-// - better sanitization func
 // - tests
 //   - periodic purge
 //   - 1440 limit
+// - benchmark for event
+// - option for single emit
 
 type StatsDSinkSanitizationFunc func(*bytes.Buffer, string)
 
@@ -28,6 +29,7 @@ type prefixBuffer struct {
 
 type StatsDSink struct {
 	SanitizationFunc StatsDSinkSanitizationFunc
+	SkipNestedEvents bool
 
 	cmdChan       chan statsdEmitCmd
 	drainDoneChan chan int
@@ -196,25 +198,33 @@ func (s *StatsDSink) processCmd(cmd *statsdEmitCmd) {
 func (s *StatsDSink) processEvent(job string, event string) {
 	b1, b2 := s.eventBytes(job, event, "")
 	s.writeStatsDMetric(b1)
-	s.writeStatsDMetric(b2)
+	if !s.SkipNestedEvents {
+		s.writeStatsDMetric(b2)
+	}
 }
 
 func (s *StatsDSink) processEventErr(job string, event string) {
 	b1, b2 := s.eventBytes(job, event, "error")
 	s.writeStatsDMetric(b1)
-	s.writeStatsDMetric(b2)
+	if !s.SkipNestedEvents {
+		s.writeStatsDMetric(b2)
+	}
 }
 
 func (s *StatsDSink) processTiming(job string, event string, nanos int64) {
 	b1, b2 := s.timingBytes(job, event, nanos)
 	s.writeStatsDMetric(b1)
-	s.writeStatsDMetric(b2)
+	if !s.SkipNestedEvents {
+		s.writeStatsDMetric(b2)
+	}
 }
 
 func (s *StatsDSink) processGauge(job string, event string, value float64) {
 	b1, b2 := s.gaugeBytes(job, event, value)
 	s.writeStatsDMetric(b1)
-	s.writeStatsDMetric(b2)
+	if !s.SkipNestedEvents {
+		s.writeStatsDMetric(b2)
+	}
 }
 
 func (s *StatsDSink) processComplete(job string, status CompletionStatus, nanos int64) {
@@ -270,14 +280,18 @@ func (s *StatsDSink) writeStatsDMetric(b []byte) {
 func (s *StatsDSink) eventBytes(job, event, suffix string) ([]byte, []byte) {
 	key := eventKey{job, event, suffix}
 
-	jobEventBytes, ok := s.events[key]
-	if !ok {
-		var b bytes.Buffer
-		s.writeSanitizedKeys(&b, s.prefix, job, event, suffix)
-		b.WriteString(":1|c\n")
+	var jobEventBytes []byte
+	var ok bool
+	if !s.SkipNestedEvents {
+		jobEventBytes, ok = s.events[key]
+		if !ok {
+			var b bytes.Buffer
+			s.writeSanitizedKeys(&b, s.prefix, job, event, suffix)
+			b.WriteString(":1|c\n")
 
-		jobEventBytes = b.Bytes()
-		s.events[key] = jobEventBytes
+			jobEventBytes = b.Bytes()
+			s.events[key] = jobEventBytes
+		}
 	}
 
 	key.job = ""
@@ -296,27 +310,30 @@ func (s *StatsDSink) eventBytes(job, event, suffix string) ([]byte, []byte) {
 
 func (s *StatsDSink) timingBytes(job, event string, nanos int64) ([]byte, []byte) {
 	s.writeNanosToTimingBuf(nanos)
-
 	key := eventKey{job, event, ""}
-	b, ok := s.timingsAndGauges[key]
-	if !ok {
-		b.Buffer = &bytes.Buffer{}
-		s.writeSanitizedKeys(b.Buffer, s.prefix, job, event)
-		b.WriteByte(':')
-		b.prefixLen = b.Len()
 
-		// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
-		b.Grow(16)
-		s.timingsAndGauges[key] = b
+	var jobEventBytes []byte
+	if !s.SkipNestedEvents {
+		b, ok := s.timingsAndGauges[key]
+		if !ok {
+			b.Buffer = &bytes.Buffer{}
+			s.writeSanitizedKeys(b.Buffer, s.prefix, job, event)
+			b.WriteByte(':')
+			b.prefixLen = b.Len()
+
+			// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
+			b.Grow(16)
+			s.timingsAndGauges[key] = b
+		}
+
+		b.Truncate(b.prefixLen)
+		b.Write(s.timingBuf)
+		b.WriteString("|ms\n")
+		jobEventBytes = b.Bytes()
 	}
 
-	b.Truncate(b.prefixLen)
-	b.Write(s.timingBuf)
-	b.WriteString("|ms\n")
-	jobEventBytes := b.Bytes()
-
 	key.job = ""
-	b, ok = s.timingsAndGauges[key]
+	b, ok := s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
 		s.writeSanitizedKeys(b.Buffer, s.prefix, event)
@@ -339,27 +356,30 @@ func (s *StatsDSink) timingBytes(job, event string, nanos int64) ([]byte, []byte
 func (s *StatsDSink) gaugeBytes(job, event string, value float64) ([]byte, []byte) {
 	s.timingBuf = s.timingBuf[0:0]
 	s.timingBuf = strconv.AppendFloat(s.timingBuf, value, 'f', 2, 64)
-
 	key := eventKey{job, event, ""}
-	b, ok := s.timingsAndGauges[key]
-	if !ok {
-		b.Buffer = &bytes.Buffer{}
-		s.writeSanitizedKeys(b.Buffer, s.prefix, job, event)
-		b.WriteByte(':')
-		b.prefixLen = b.Len()
 
-		// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
-		b.Grow(16)
-		s.timingsAndGauges[key] = b
+	var jobEventBytes []byte
+	if !s.SkipNestedEvents {
+		b, ok := s.timingsAndGauges[key]
+		if !ok {
+			b.Buffer = &bytes.Buffer{}
+			s.writeSanitizedKeys(b.Buffer, s.prefix, job, event)
+			b.WriteByte(':')
+			b.prefixLen = b.Len()
+
+			// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
+			b.Grow(16)
+			s.timingsAndGauges[key] = b
+		}
+
+		b.Truncate(b.prefixLen)
+		b.Write(s.timingBuf)
+		b.WriteString("|g\n")
+		jobEventBytes = b.Bytes()
 	}
 
-	b.Truncate(b.prefixLen)
-	b.Write(s.timingBuf)
-	b.WriteString("|g\n")
-	jobEventBytes := b.Bytes()
-
 	key.job = ""
-	b, ok = s.timingsAndGauges[key]
+	b, ok := s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
 		s.writeSanitizedKeys(b.Buffer, s.prefix, event)

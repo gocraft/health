@@ -45,6 +45,10 @@ func listenFor(t *testing.T, msgs []string, f func()) {
 	}
 }
 
+//func TestStatsDSinkPeriodicPurge(t *testing.T) {
+
+//}
+
 func TestStatsDSinkEmitEventPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
 	defer sink.Stop()
