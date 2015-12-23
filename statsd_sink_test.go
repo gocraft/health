@@ -1,6 +1,7 @@
 package health
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"net"
@@ -178,4 +179,14 @@ func TestStatsDSinkEmitTimingSubMillisecond(t *testing.T) {
 		sink.EmitTiming("my.job", "my.event", 456789, nil)
 		sink.Drain()
 	})
+}
+
+func BenchmarkSanitize(b *testing.B) {
+	key := "prefix.|j|o|b|.my_cool_event:1"
+	buf := bytes.Buffer{}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sanitizeKey(&buf, key)
+		buf.Truncate(0)
+	}
 }

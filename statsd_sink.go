@@ -13,7 +13,7 @@ import (
 //   - periodic purge
 //   - 1440 limit
 
-type StatsDSinkSanitizationFunc func(string) string
+type StatsDSinkSanitizationFunc func(*bytes.Buffer, string)
 
 type eventKey struct {
 	job    string
@@ -386,7 +386,7 @@ func (s *StatsDSink) writeSanitizedKeys(b *bytes.Buffer, keys ...string) {
 			if needDot {
 				b.WriteByte('.')
 			}
-			b.WriteString(s.SanitizationFunc(k))
+			s.SanitizationFunc(b, k)
 			needDot = true
 		}
 	}
@@ -402,14 +402,14 @@ func (s *StatsDSink) writeNanosToTimingBuf(nanos int64) {
 	}
 }
 
-func sanitizeKey(k string) string {
-	var key bytes.Buffer
-	for _, c := range k {
-		if c == '|' || c == ':' {
-			key.WriteByte('$')
+func sanitizeKey(b *bytes.Buffer, s string) {
+	b.Grow(len(s) + 1)
+	for i := 0; i < len(s); i++ {
+		si := s[i]
+		if ('A' <= si && si <= 'Z') || ('a' <= si && si <= 'z') || ('0' <= si && s[i] <= '9') || si == '_' || si == '.' {
+			b.WriteByte(si)
 		} else {
-			key.WriteRune(c)
+			b.WriteByte('$')
 		}
 	}
-	return key.String()
 }
