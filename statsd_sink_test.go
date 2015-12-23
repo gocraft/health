@@ -1,8 +1,6 @@
 package health
 
 import (
-	// "bytes"
-	// "errors"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"net"
@@ -48,102 +46,136 @@ func listenFor(t *testing.T, msgs []string, f func()) {
 
 func TestStatsDSinkEmitEventPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
+	defer sink.Stop()
 	assert.NoError(t, err)
-	listenFor(t, []string{"metroid.my.event:1|c\n", "metroid.my.job.my.event:1|c\n"}, func() {
+	listenFor(t, []string{"metroid.my.event:1|c\nmetroid.my.job.my.event:1|c\n"}, func() {
 		sink.EmitEvent("my.job", "my.event", nil)
+		sink.Drain()
 	})
 }
 
 func TestStatsDSinkEmitEventShouldSanitize(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
+	defer sink.Stop()
 	assert.NoError(t, err)
-	listenFor(t, []string{"metroid.my$event:1|c\n", "metroid.my$job.my$event:1|c\n"}, func() {
+	listenFor(t, []string{"metroid.my$event:1|c\nmetroid.my$job.my$event:1|c\n"}, func() {
 		sink.EmitEvent("my|job", "my:event", nil)
+		sink.Drain()
 	})
 }
 
 func TestStatsDSinkEmitEventNoPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "")
+	defer sink.Stop()
 	assert.NoError(t, err)
-	listenFor(t, []string{"my.event:1|c\n", "my.job.my.event:1|c\n"}, func() {
+	listenFor(t, []string{"my.event:1|c\nmy.job.my.event:1|c\n"}, func() {
 		sink.EmitEvent("my.job", "my.event", nil)
+		sink.Drain()
 	})
 }
 
 func TestStatsDSinkEmitEventErrPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
+	defer sink.Stop()
 	assert.NoError(t, err)
-	listenFor(t, []string{"metroid.my.event.error:1|c\n", "metroid.my.job.my.event.error:1|c\n"}, func() {
+	listenFor(t, []string{"metroid.my.event.error:1|c\nmetroid.my.job.my.event.error:1|c\n"}, func() {
 		sink.EmitEventErr("my.job", "my.event", testErr, nil)
+		sink.Drain()
 	})
 }
 
 func TestStatsDSinkEmitEventErrNoPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "")
+	defer sink.Stop()
 	assert.NoError(t, err)
-	listenFor(t, []string{"my.event.error:1|c\n", "my.job.my.event.error:1|c\n"}, func() {
+	listenFor(t, []string{"my.event.error:1|c\nmy.job.my.event.error:1|c\n"}, func() {
 		sink.EmitEventErr("my.job", "my.event", testErr, nil)
+		sink.Drain()
 	})
 }
 
 func TestStatsDSinkEmitTimingPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
+	defer sink.Stop()
 	assert.NoError(t, err)
-	listenFor(t, []string{"metroid.my.event:123.456789|ms\n", "metroid.my.job.my.event:123.456789|ms\n"}, func() {
+	listenFor(t, []string{"metroid.my.event:123|ms\nmetroid.my.job.my.event:123|ms\n"}, func() {
 		sink.EmitTiming("my.job", "my.event", 123456789, nil)
+		sink.Drain()
 	})
 }
 
 func TestStatsDSinkEmitTimingNoPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "")
+	defer sink.Stop()
 	assert.NoError(t, err)
-	listenFor(t, []string{"my.event:123.456789|ms\n", "my.job.my.event:123.456789|ms\n"}, func() {
+	listenFor(t, []string{"my.event:123|ms\nmy.job.my.event:123|ms\n"}, func() {
 		sink.EmitTiming("my.job", "my.event", 123456789, nil)
+		sink.Drain()
+	})
+}
+
+func TestStatsDSinkEmitTimingShort(t *testing.T) {
+	sink, err := NewStatsDSink(testAddr, "")
+	defer sink.Stop()
+	assert.NoError(t, err)
+	listenFor(t, []string{"my.event:1.23|ms\nmy.job.my.event:1.23|ms\n"}, func() {
+		sink.EmitTiming("my.job", "my.event", 1234567, nil)
+		sink.Drain()
 	})
 }
 
 func TestStatsDSinkEmitGaugePrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
+	defer sink.Stop()
 	assert.NoError(t, err)
-	listenFor(t, []string{"metroid.my.event:3.14|g\n", "metroid.my.job.my.event:3.14|g\n"}, func() {
+	listenFor(t, []string{"metroid.my.event:3.14|g\nmetroid.my.job.my.event:3.14|g\n"}, func() {
 		sink.EmitGauge("my.job", "my.event", 3.14, nil)
+		sink.Drain()
 	})
 }
 
 func TestStatsDSinkEmitGaugeNoPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "")
+	defer sink.Stop()
 	assert.NoError(t, err)
-	listenFor(t, []string{"my.event:3|g\n", "my.job.my.event:3|g\n"}, func() {
+	listenFor(t, []string{"my.event:3.00|g\nmy.job.my.event:3.00|g\n"}, func() {
 		sink.EmitGauge("my.job", "my.event", 3, nil)
+		sink.Drain()
 	})
 }
 
 func TestStatsDSinkEmitCompletePrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
+	defer sink.Stop()
 	assert.NoError(t, err)
 	for kind, kindStr := range completionStatusToString {
-		str := fmt.Sprintf("metroid.my.job.%s:129.456789|ms\n", kindStr)
+		str := fmt.Sprintf("metroid.my.job.%s:129|ms\n", kindStr)
 		listenFor(t, []string{str}, func() {
 			sink.EmitComplete("my.job", kind, 129456789, nil)
+			sink.Drain()
 		})
 	}
 }
 
 func TestStatsDSinkEmitCompleteNoPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "")
+	defer sink.Stop()
 	assert.NoError(t, err)
 	for kind, kindStr := range completionStatusToString {
-		str := fmt.Sprintf("my.job.%s:129.456789|ms\n", kindStr)
+		str := fmt.Sprintf("my.job.%s:129|ms\n", kindStr)
 		listenFor(t, []string{str}, func() {
 			sink.EmitComplete("my.job", kind, 129456789, nil)
+			sink.Drain()
 		})
 	}
 }
 
 func TestStatsDSinkEmitTimingSubMillisecond(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, "metroid")
+	defer sink.Stop()
 	assert.NoError(t, err)
-	listenFor(t, []string{"metroid.my.event:0.456789|ms\n", "metroid.my.job.my.event:0.456789|ms\n"}, func() {
+	listenFor(t, []string{"metroid.my.event:0.46|ms\nmetroid.my.job.my.event:0.46|ms\n"}, func() {
 		sink.EmitTiming("my.job", "my.event", 456789, nil)
+		sink.Drain()
 	})
 }

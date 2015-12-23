@@ -2,164 +2,413 @@ package health
 
 import (
 	"bytes"
-	"fmt"
 	"net"
+	"strconv"
 	"time"
 )
 
-type StatsDSinkSantizationFunc func(string) string
+// TODO:
+// - better sanitization func
+// - tests
+//   - periodic purge
+//   - 1440 limit
 
-// This sink emits to a StatsD deaemon by sending it a UDP packet.
+type SanitizationFunc func(string) string
+
+type eventKey struct {
+	job    string
+	event  string
+	suffix string
+}
+
+type prefixBuffer struct {
+	*bytes.Buffer
+	prefixLen int
+}
+
 type StatsDSink struct {
-	SanitizationFunc StatsDSinkSantizationFunc
+	SanitizationFunc SanitizationFunc
 
-	conn net.Conn
+	cmdChan       chan statsdEmitCmd
+	drainDoneChan chan int
+	stopDoneChan  chan int
 
 	// Prefix is something like "metroid"
 	// Events emitted to StatsD would be metroid.myevent.wat
 	// Eg, don't include a trailing dot in the prefix.
 	// It can be "", that's fine.
-	prefix string
+	prefix      string
+	flushPeriod time.Duration
+
+	udpBuf    bytes.Buffer
+	timingBuf []byte
+
+	udpConn *net.UDPConn
+	udpAddr *net.UDPAddr
+
+	// map of {job,event,suffix} -> entire byte slice to send to statsd
+	// (suffix is "error" for EventErr)
+	events map[eventKey][]byte
+
+	// map of {job,event,suffix} to a re-usable buffer prefixed with the key.
+	// Since each timing has a unique component (the time), we'll truncate to the prefix, write the timing,
+	// and write the statsD suffix (eg, "|ms\n"). Then copy that to the UDP buffer.
+	timingsAndGauges map[eventKey]prefixBuffer
 }
 
-func NewStatsDSink(addr, prefix string) (Sink, error) {
-	c, err := net.DialTimeout("udp", addr, 2*time.Second)
+type statsdCmdKind int
+
+const (
+	statsdCmdKindEvent statsdCmdKind = iota
+	statsdCmdKindEventErr
+	statsdCmdKindTiming
+	statsdCmdKindGauge
+	statsdCmdKindComplete
+	statsdCmdKindFlush
+	statsdCmdKindDrain
+	statsdCmdKindStop
+)
+
+type statsdEmitCmd struct {
+	Kind   statsdCmdKind
+	Job    string
+	Event  string
+	Nanos  int64
+	Value  float64
+	Status CompletionStatus
+}
+
+const cmdChanBuffSize = 8192 // random-ass-guess
+const maxUdpBytes = 1440     // 1500(Ethernet MTU) - 60(Max UDP header size
+
+func NewStatsDSink(addr, prefix string) (*StatsDSink, error) {
+	c, err := net.ListenPacket("udp", ":0")
 	if err != nil {
 		return nil, err
 	}
 
-	sink := &StatsDSink{
-		SanitizationFunc: sanitizeKey,
-		conn:             c,
-		prefix:           prefix,
+	ra, err := net.ResolveUDPAddr("udp", addr)
+	if err != nil {
+		return nil, err
 	}
 
-	return sink, nil
+	s := &StatsDSink{
+		SanitizationFunc: sanitizeKey,
+		udpConn:          c.(*net.UDPConn),
+		udpAddr:          ra,
+		cmdChan:          make(chan statsdEmitCmd, cmdChanBuffSize),
+		drainDoneChan:    make(chan int),
+		stopDoneChan:     make(chan int),
+		prefix:           prefix,
+		flushPeriod:      100 * time.Millisecond,
+		events:           make(map[eventKey][]byte),
+		timingsAndGauges: make(map[eventKey]prefixBuffer),
+	}
+
+	go s.loop()
+
+	return s, nil
 }
 
-// If event is "my.event", and job is "cool.job"
-// This will emit two events to statsd:
-// "my.event"
-// "cool.job.my.event"
-// (this will apply prefix if it's set, so "prefix.my.event" and "prefix.cool.job.my.event")
+func (s *StatsDSink) Stop() {
+	s.cmdChan <- statsdEmitCmd{Kind: statsdCmdKindStop}
+	<-s.stopDoneChan
+}
+
+func (s *StatsDSink) Drain() {
+	s.cmdChan <- statsdEmitCmd{Kind: statsdCmdKindDrain}
+	<-s.drainDoneChan
+}
+
 func (s *StatsDSink) EmitEvent(job string, event string, kvs map[string]string) {
-	key1, key2 := s.eventKeys(job, event, "")
-	s.inc(key1)
-	s.inc(key2)
+	s.cmdChan <- statsdEmitCmd{Kind: statsdCmdKindEvent, Job: job, Event: event}
 }
 
-// If event is "my.event", and job is "cool.job",
-// This will emit two events: "my.event.error" and "cool.job.my.event.error" (prefix applied if present)
 func (s *StatsDSink) EmitEventErr(job string, event string, inputErr error, kvs map[string]string) {
-	key1, key2 := s.eventKeys(job, event, "error")
-	s.inc(key1)
-	s.inc(key2)
+	s.cmdChan <- statsdEmitCmd{Kind: statsdCmdKindEventErr, Job: job, Event: event}
 }
 
 func (s *StatsDSink) EmitTiming(job string, event string, nanos int64, kvs map[string]string) {
-	key1, key2 := s.eventKeys(job, event, "")
-	s.measure(key1, nanos)
-	s.measure(key2, nanos)
+	s.cmdChan <- statsdEmitCmd{Kind: statsdCmdKindTiming, Job: job, Event: event, Nanos: nanos}
 }
 
 func (s *StatsDSink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
-	key1, key2 := s.eventKeys(job, event, "")
-	s.gauge(key1, value)
-	s.gauge(key2, value)
+	s.cmdChan <- statsdEmitCmd{Kind: statsdCmdKindGauge, Job: job, Event: event, Value: value}
 }
 
-// if job is "my.job", this will emit "my.job.xyz" where xyz is "success", etc (see completionStatusToString)
 func (s *StatsDSink) EmitComplete(job string, status CompletionStatus, nanos int64, kvs map[string]string) {
-	var b bytes.Buffer
+	s.cmdChan <- statsdEmitCmd{Kind: statsdCmdKindComplete, Job: job, Status: status, Nanos: nanos}
+}
 
-	if s.prefix != "" {
-		b.WriteString(s.prefix)
-		b.WriteRune('.')
+func (s *StatsDSink) loop() {
+	cmdChan := s.cmdChan
+
+	ticker := time.NewTicker(s.flushPeriod)
+	go func() {
+		for _ = range ticker.C {
+			cmdChan <- statsdEmitCmd{Kind: statsdCmdKindFlush}
+		}
+	}()
+
+LOOP:
+	for cmd := range cmdChan {
+		switch cmd.Kind {
+		case statsdCmdKindDrain:
+		DRAIN_LOOP:
+			for {
+				select {
+				case cmd := <-cmdChan:
+					s.processCmd(&cmd)
+				default:
+					s.flush()
+					s.drainDoneChan <- 1
+					break DRAIN_LOOP
+				}
+			}
+		case statsdCmdKindStop:
+			s.stopDoneChan <- 1
+			break LOOP
+		case statsdCmdKindFlush:
+			s.flush()
+		default:
+			s.processCmd(&cmd)
+		}
 	}
-	b.WriteString(s.SanitizationFunc(job))
-	b.WriteRune('.')
-	b.WriteString(status.String())
 
-	s.measure(b.String(), nanos)
+	ticker.Stop()
 }
 
-func (s *StatsDSink) eventKeys(job, event, suffix string) (string, string) {
-	var key1 bytes.Buffer // event
-	var key2 bytes.Buffer // job.event
+func (s *StatsDSink) processCmd(cmd *statsdEmitCmd) {
+	switch cmd.Kind {
+	case statsdCmdKindEvent:
+		s.processEvent(cmd.Job, cmd.Event)
+	case statsdCmdKindEventErr:
+		s.processEventErr(cmd.Job, cmd.Event)
+	case statsdCmdKindTiming:
+		s.processTiming(cmd.Job, cmd.Event, cmd.Nanos)
+	case statsdCmdKindGauge:
+		s.processGauge(cmd.Job, cmd.Event, cmd.Value)
+	case statsdCmdKindComplete:
+		s.processComplete(cmd.Job, cmd.Status, cmd.Nanos)
+	}
+}
 
-	if s.prefix != "" {
-		key1.WriteString(s.prefix)
-		key1.WriteRune('.')
-		key2.WriteString(s.prefix)
-		key2.WriteRune('.')
+func (s *StatsDSink) processEvent(job string, event string) {
+	b1, b2 := s.eventBytes(job, event, "")
+	s.writeStatsDMetric(b1)
+	s.writeStatsDMetric(b2)
+}
+
+func (s *StatsDSink) processEventErr(job string, event string) {
+	b1, b2 := s.eventBytes(job, event, "error")
+	s.writeStatsDMetric(b1)
+	s.writeStatsDMetric(b2)
+}
+
+func (s *StatsDSink) processTiming(job string, event string, nanos int64) {
+	b1, b2 := s.timingBytes(job, event, nanos)
+	s.writeStatsDMetric(b1)
+	s.writeStatsDMetric(b2)
+}
+
+func (s *StatsDSink) processGauge(job string, event string, value float64) {
+	b1, b2 := s.gaugeBytes(job, event, value)
+	s.writeStatsDMetric(b1)
+	s.writeStatsDMetric(b2)
+}
+
+func (s *StatsDSink) processComplete(job string, status CompletionStatus, nanos int64) {
+	s.writeNanosToTimingBuf(nanos)
+
+	statusString := status.String()
+	key := eventKey{job, "", statusString}
+	b, ok := s.timingsAndGauges[key]
+	if !ok {
+		b.Buffer = &bytes.Buffer{}
+		s.writeSanitizedKeys(b.Buffer, s.prefix, job, statusString)
+		b.WriteByte(':')
+		b.prefixLen = b.Len()
+
+		// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
+		b.Grow(16)
+		s.timingsAndGauges[key] = b
 	}
 
-	key1.WriteString(s.SanitizationFunc(event))
-	key2.WriteString(s.SanitizationFunc(job))
-	key2.WriteRune('.')
-	key2.WriteString(s.SanitizationFunc(event))
+	b.Truncate(b.prefixLen)
+	b.Write(s.timingBuf)
+	b.WriteString("|ms\n")
 
-	if suffix != "" {
-		key1.WriteRune('.')
-		key1.WriteString(suffix)
-		key2.WriteRune('.')
-		key2.WriteString(suffix)
+	s.writeStatsDMetric(b.Bytes())
+}
+
+func (s *StatsDSink) flush() {
+	if s.udpBuf.Len() > 0 {
+		s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
+		s.udpBuf.Truncate(0)
+	}
+}
+
+// assumes b is a well-formed statsd metric like "job.event:1|c\n" (including newline)
+func (s *StatsDSink) writeStatsDMetric(b []byte) {
+	lenb := len(b)
+	lenUdpBuf := s.udpBuf.Len()
+
+	// single metric exceeds limit. sad day.
+	if lenb > maxUdpBytes {
+		return
 	}
 
-	return key1.String(), key2.String()
-}
-
-func (s *StatsDSink) inc(key string) {
-	var msg bytes.Buffer
-	msg.WriteString(key)
-	msg.WriteString(":1|c\n")
-	s.send(msg.Bytes())
-}
-
-func (s *StatsDSink) measure(key string, nanos int64) {
-	var msg bytes.Buffer
-	msg.WriteString(key)
-	msg.WriteRune(':')
-	msg.WriteString(fmt.Sprintf("%f", float64(nanos)/float64(time.Millisecond)))
-	msg.WriteString("|ms\n")
-	s.send(msg.Bytes())
-}
-
-func (s *StatsDSink) gauge(key string, value float64) {
-	var msg bytes.Buffer
-	msg.WriteString(key)
-	msg.WriteRune(':')
-	fmt.Fprintf(&msg, "%g", value)
-	msg.WriteString("|g\n")
-	s.send(msg.Bytes())
-}
-
-func (s *StatsDSink) send(msg []byte) {
-	s.conn.Write(msg)
-}
-
-func shouldSanitize(r rune) bool {
-	switch r {
-	case '|', ':':
-		return true
+	if (lenb + lenUdpBuf) > maxUdpBytes {
+		s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
+		s.udpBuf.Truncate(0)
 	}
-	return false
+
+	s.udpBuf.Write(b)
+}
+
+// returns {bytes for event, bytes for job+event}
+func (s *StatsDSink) eventBytes(job, event, suffix string) ([]byte, []byte) {
+	key := eventKey{job, event, suffix}
+
+	jobEventBytes, ok := s.events[key]
+	if !ok {
+		var b bytes.Buffer
+		s.writeSanitizedKeys(&b, s.prefix, job, event, suffix)
+		b.WriteString(":1|c\n")
+
+		jobEventBytes = b.Bytes()
+		s.events[key] = jobEventBytes
+	}
+
+	key.job = ""
+	eventBytes, ok := s.events[key]
+	if !ok {
+		var b bytes.Buffer
+		s.writeSanitizedKeys(&b, s.prefix, event, suffix)
+		b.WriteString(":1|c\n")
+
+		eventBytes = b.Bytes()
+		s.events[key] = eventBytes
+	}
+
+	return eventBytes, jobEventBytes
+}
+
+func (s *StatsDSink) timingBytes(job, event string, nanos int64) ([]byte, []byte) {
+	s.writeNanosToTimingBuf(nanos)
+
+	key := eventKey{job, event, ""}
+	b, ok := s.timingsAndGauges[key]
+	if !ok {
+		b.Buffer = &bytes.Buffer{}
+		s.writeSanitizedKeys(b.Buffer, s.prefix, job, event)
+		b.WriteByte(':')
+		b.prefixLen = b.Len()
+
+		// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
+		b.Grow(16)
+		s.timingsAndGauges[key] = b
+	}
+
+	b.Truncate(b.prefixLen)
+	b.Write(s.timingBuf)
+	b.WriteString("|ms\n")
+	jobEventBytes := b.Bytes()
+
+	key.job = ""
+	b, ok = s.timingsAndGauges[key]
+	if !ok {
+		b.Buffer = &bytes.Buffer{}
+		s.writeSanitizedKeys(b.Buffer, s.prefix, event)
+		b.WriteByte(':')
+		b.prefixLen = b.Len()
+
+		// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
+		b.Grow(16)
+		s.timingsAndGauges[key] = b
+	}
+
+	b.Truncate(b.prefixLen)
+	b.Write(s.timingBuf)
+	b.WriteString("|ms\n")
+	eventBytes := b.Bytes()
+
+	return eventBytes, jobEventBytes
+}
+
+func (s *StatsDSink) gaugeBytes(job, event string, value float64) ([]byte, []byte) {
+	s.timingBuf = s.timingBuf[0:0]
+	s.timingBuf = strconv.AppendFloat(s.timingBuf, value, 'f', 2, 64)
+
+	key := eventKey{job, event, ""}
+	b, ok := s.timingsAndGauges[key]
+	if !ok {
+		b.Buffer = &bytes.Buffer{}
+		s.writeSanitizedKeys(b.Buffer, s.prefix, job, event)
+		b.WriteByte(':')
+		b.prefixLen = b.Len()
+
+		// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
+		b.Grow(16)
+		s.timingsAndGauges[key] = b
+	}
+
+	b.Truncate(b.prefixLen)
+	b.Write(s.timingBuf)
+	b.WriteString("|g\n")
+	jobEventBytes := b.Bytes()
+
+	key.job = ""
+	b, ok = s.timingsAndGauges[key]
+	if !ok {
+		b.Buffer = &bytes.Buffer{}
+		s.writeSanitizedKeys(b.Buffer, s.prefix, event)
+		b.WriteByte(':')
+		b.prefixLen = b.Len()
+
+		// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
+		b.Grow(16)
+		s.timingsAndGauges[key] = b
+	}
+
+	b.Truncate(b.prefixLen)
+	b.Write(s.timingBuf)
+	b.WriteString("|g\n")
+	eventBytes := b.Bytes()
+
+	return eventBytes, jobEventBytes
+}
+
+func (s *StatsDSink) writeSanitizedKeys(b *bytes.Buffer, keys ...string) {
+	needDot := false
+	for _, k := range keys {
+		if k != "" {
+			if needDot {
+				b.WriteByte('.')
+			}
+			b.WriteString(s.SanitizationFunc(k))
+			needDot = true
+		}
+	}
+}
+
+func (s *StatsDSink) writeNanosToTimingBuf(nanos int64) {
+	s.timingBuf = s.timingBuf[0:0]
+	if nanos >= 10e6 {
+		// More than 10 milliseconds. We'll just print as an integer
+		s.timingBuf = strconv.AppendInt(s.timingBuf, nanos/1e6, 10)
+	} else {
+		s.timingBuf = strconv.AppendFloat(s.timingBuf, float64(nanos)/float64(time.Millisecond), 'f', 2, 64)
+	}
 }
 
 func sanitizeKey(k string) string {
-	for _, r := range k {
-		if shouldSanitize(r) {
-			goto SANITIZE
-		}
-	}
-	return k
-SANITIZE:
 	var key bytes.Buffer
-	for _, r := range k {
-		if shouldSanitize(r) {
-			key.WriteRune('$')
+	for _, c := range k {
+		if c == '|' || c == ':' {
+			key.WriteByte('$')
 		} else {
-			key.WriteRune(r)
+			key.WriteRune(c)
 		}
 	}
 	return key.String()
