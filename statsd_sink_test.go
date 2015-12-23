@@ -50,7 +50,7 @@ func listenFor(t *testing.T, msgs []string, f func()) {
 //}
 
 func TestStatsDSinkEmitEventPrefix(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "metroid")
+	sink, err := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"metroid.my.event:1|c\nmetroid.my.job.my.event:1|c\n"}, func() {
@@ -60,7 +60,7 @@ func TestStatsDSinkEmitEventPrefix(t *testing.T) {
 }
 
 func TestStatsDSinkEmitEventShouldSanitize(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "metroid")
+	sink, err := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"metroid.my$event:1|c\nmetroid.my$job.my$event:1|c\n"}, func() {
@@ -70,7 +70,7 @@ func TestStatsDSinkEmitEventShouldSanitize(t *testing.T) {
 }
 
 func TestStatsDSinkEmitEventNoPrefix(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "")
+	sink, err := NewStatsDSink(testAddr, nil)
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"my.event:1|c\nmy.job.my.event:1|c\n"}, func() {
@@ -80,7 +80,7 @@ func TestStatsDSinkEmitEventNoPrefix(t *testing.T) {
 }
 
 func TestStatsDSinkEmitEventErrPrefix(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "metroid")
+	sink, err := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"metroid.my.event.error:1|c\nmetroid.my.job.my.event.error:1|c\n"}, func() {
@@ -90,7 +90,7 @@ func TestStatsDSinkEmitEventErrPrefix(t *testing.T) {
 }
 
 func TestStatsDSinkEmitEventErrNoPrefix(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "")
+	sink, err := NewStatsDSink(testAddr, nil)
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"my.event.error:1|c\nmy.job.my.event.error:1|c\n"}, func() {
@@ -100,7 +100,7 @@ func TestStatsDSinkEmitEventErrNoPrefix(t *testing.T) {
 }
 
 func TestStatsDSinkEmitTimingPrefix(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "metroid")
+	sink, err := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"metroid.my.event:123|ms\nmetroid.my.job.my.event:123|ms\n"}, func() {
@@ -110,7 +110,7 @@ func TestStatsDSinkEmitTimingPrefix(t *testing.T) {
 }
 
 func TestStatsDSinkEmitTimingNoPrefix(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "")
+	sink, err := NewStatsDSink(testAddr, nil)
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"my.event:123|ms\nmy.job.my.event:123|ms\n"}, func() {
@@ -120,7 +120,7 @@ func TestStatsDSinkEmitTimingNoPrefix(t *testing.T) {
 }
 
 func TestStatsDSinkEmitTimingShort(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "")
+	sink, err := NewStatsDSink(testAddr, nil)
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"my.event:1.23|ms\nmy.job.my.event:1.23|ms\n"}, func() {
@@ -130,7 +130,7 @@ func TestStatsDSinkEmitTimingShort(t *testing.T) {
 }
 
 func TestStatsDSinkEmitGaugePrefix(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "metroid")
+	sink, err := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"metroid.my.event:3.14|g\nmetroid.my.job.my.event:3.14|g\n"}, func() {
@@ -140,7 +140,7 @@ func TestStatsDSinkEmitGaugePrefix(t *testing.T) {
 }
 
 func TestStatsDSinkEmitGaugeNoPrefix(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "")
+	sink, err := NewStatsDSink(testAddr, nil)
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"my.event:3.00|g\nmy.job.my.event:3.00|g\n"}, func() {
@@ -150,7 +150,7 @@ func TestStatsDSinkEmitGaugeNoPrefix(t *testing.T) {
 }
 
 func TestStatsDSinkEmitCompletePrefix(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "metroid")
+	sink, err := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
 	defer sink.Stop()
 	assert.NoError(t, err)
 	for kind, kindStr := range completionStatusToString {
@@ -163,7 +163,7 @@ func TestStatsDSinkEmitCompletePrefix(t *testing.T) {
 }
 
 func TestStatsDSinkEmitCompleteNoPrefix(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "")
+	sink, err := NewStatsDSink(testAddr, nil)
 	defer sink.Stop()
 	assert.NoError(t, err)
 	for kind, kindStr := range completionStatusToString {
@@ -176,7 +176,7 @@ func TestStatsDSinkEmitCompleteNoPrefix(t *testing.T) {
 }
 
 func TestStatsDSinkEmitTimingSubMillisecond(t *testing.T) {
-	sink, err := NewStatsDSink(testAddr, "metroid")
+	sink, err := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
 	defer sink.Stop()
 	assert.NoError(t, err)
 	listenFor(t, []string{"metroid.my.event:0.46|ms\nmetroid.my.job.my.event:0.46|ms\n"}, func() {

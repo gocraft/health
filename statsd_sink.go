@@ -27,19 +27,34 @@ type prefixBuffer struct {
 	prefixLen int
 }
 
-type StatsDSink struct {
-	SanitizationFunc StatsDSinkSanitizationFunc
-	SkipNestedEvents bool
-
-	cmdChan       chan statsdEmitCmd
-	drainDoneChan chan int
-	stopDoneChan  chan int
-
+type StatsDSinkOptions struct {
 	// Prefix is something like "metroid"
 	// Events emitted to StatsD would be metroid.myevent.wat
 	// Eg, don't include a trailing dot in the prefix.
 	// It can be "", that's fine.
-	prefix      string
+	Prefix string
+
+	// SanitizationFunc sanitizes jobs and events before sending them to statsd
+	SanitizationFunc StatsDSinkSanitizationFunc
+
+	// SkipNestedEvents will skip {events,timers,gauges} from sending the job.event version
+	// and will only send the event version.
+	SkipNestedEvents bool
+
+	// SkipTopLevelEvents will skip {events,timers,gauges} from sending the event version
+	// and will only send the job.event version.
+	SkipTopLevelEvents bool
+}
+
+var defaultStatsDOptions = StatsDSinkOptions{SanitizationFunc: sanitizeKey}
+
+type StatsDSink struct {
+	options StatsDSinkOptions
+
+	cmdChan       chan statsdEmitCmd
+	drainDoneChan chan struct{}
+	stopDoneChan  chan struct{}
+
 	flushPeriod time.Duration
 
 	udpBuf    bytes.Buffer
@@ -83,7 +98,7 @@ type statsdEmitCmd struct {
 const cmdChanBuffSize = 8192 // random-ass-guess
 const maxUdpBytes = 1440     // 1500(Ethernet MTU) - 60(Max UDP header size
 
-func NewStatsDSink(addr, prefix string) (*StatsDSink, error) {
+func NewStatsDSink(addr string, options *StatsDSinkOptions) (*StatsDSink, error) {
 	c, err := net.ListenPacket("udp", ":0")
 	if err != nil {
 		return nil, err
@@ -95,16 +110,23 @@ func NewStatsDSink(addr, prefix string) (*StatsDSink, error) {
 	}
 
 	s := &StatsDSink{
-		SanitizationFunc: sanitizeKey,
 		udpConn:          c.(*net.UDPConn),
 		udpAddr:          ra,
 		cmdChan:          make(chan statsdEmitCmd, cmdChanBuffSize),
-		drainDoneChan:    make(chan int),
-		stopDoneChan:     make(chan int),
-		prefix:           prefix,
+		drainDoneChan:    make(chan struct{}),
+		stopDoneChan:     make(chan struct{}),
 		flushPeriod:      100 * time.Millisecond,
 		events:           make(map[eventKey][]byte),
 		timingsAndGauges: make(map[eventKey]prefixBuffer),
+	}
+
+	if options != nil {
+		s.options = *options
+		if s.options.SanitizationFunc == nil {
+			s.options.SanitizationFunc = sanitizeKey
+		}
+	} else {
+		s.options = defaultStatsDOptions
 	}
 
 	go s.loop()
@@ -163,12 +185,12 @@ LOOP:
 					s.processCmd(&cmd)
 				default:
 					s.flush()
-					s.drainDoneChan <- 1
+					s.drainDoneChan <- struct{}{}
 					break DRAIN_LOOP
 				}
 			}
 		case statsdCmdKindStop:
-			s.stopDoneChan <- 1
+			s.stopDoneChan <- struct{}{}
 			break LOOP
 		case statsdCmdKindFlush:
 			s.flush()
@@ -198,33 +220,25 @@ func (s *StatsDSink) processCmd(cmd *statsdEmitCmd) {
 func (s *StatsDSink) processEvent(job string, event string) {
 	b1, b2 := s.eventBytes(job, event, "")
 	s.writeStatsDMetric(b1)
-	if !s.SkipNestedEvents {
-		s.writeStatsDMetric(b2)
-	}
+	s.writeStatsDMetric(b2)
 }
 
 func (s *StatsDSink) processEventErr(job string, event string) {
 	b1, b2 := s.eventBytes(job, event, "error")
 	s.writeStatsDMetric(b1)
-	if !s.SkipNestedEvents {
-		s.writeStatsDMetric(b2)
-	}
+	s.writeStatsDMetric(b2)
 }
 
 func (s *StatsDSink) processTiming(job string, event string, nanos int64) {
 	b1, b2 := s.timingBytes(job, event, nanos)
 	s.writeStatsDMetric(b1)
-	if !s.SkipNestedEvents {
-		s.writeStatsDMetric(b2)
-	}
+	s.writeStatsDMetric(b2)
 }
 
 func (s *StatsDSink) processGauge(job string, event string, value float64) {
 	b1, b2 := s.gaugeBytes(job, event, value)
 	s.writeStatsDMetric(b1)
-	if !s.SkipNestedEvents {
-		s.writeStatsDMetric(b2)
-	}
+	s.writeStatsDMetric(b2)
 }
 
 func (s *StatsDSink) processComplete(job string, status CompletionStatus, nanos int64) {
@@ -235,7 +249,7 @@ func (s *StatsDSink) processComplete(job string, status CompletionStatus, nanos 
 	b, ok := s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
-		s.writeSanitizedKeys(b.Buffer, s.prefix, job, statusString)
+		s.writeSanitizedKeys(b.Buffer, s.options.Prefix, job, statusString)
 		b.WriteByte(':')
 		b.prefixLen = b.Len()
 
@@ -261,12 +275,18 @@ func (s *StatsDSink) flush() {
 // assumes b is a well-formed statsd metric like "job.event:1|c\n" (including newline)
 func (s *StatsDSink) writeStatsDMetric(b []byte) {
 	lenb := len(b)
-	lenUdpBuf := s.udpBuf.Len()
+
+	// This can happen based on the design of the system -- if we choose not to send a metric, we'll use nil.
+	if lenb == 0 {
+		return
+	}
 
 	// single metric exceeds limit. sad day.
 	if lenb > maxUdpBytes {
 		return
 	}
+
+	lenUdpBuf := s.udpBuf.Len()
 
 	if (lenb + lenUdpBuf) > maxUdpBytes {
 		s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
@@ -280,25 +300,21 @@ func (s *StatsDSink) writeStatsDMetric(b []byte) {
 func (s *StatsDSink) eventBytes(job, event, suffix string) ([]byte, []byte) {
 	key := eventKey{job, event, suffix}
 
-	var jobEventBytes []byte
-	var ok bool
-	if !s.SkipNestedEvents {
-		jobEventBytes, ok = s.events[key]
-		if !ok {
-			var b bytes.Buffer
-			s.writeSanitizedKeys(&b, s.prefix, job, event, suffix)
-			b.WriteString(":1|c\n")
+	jobEventBytes, ok := s.events[key]
+	if !ok {
+		var b bytes.Buffer
+		s.writeSanitizedKeys(&b, s.options.Prefix, job, event, suffix)
+		b.WriteString(":1|c\n")
 
-			jobEventBytes = b.Bytes()
-			s.events[key] = jobEventBytes
-		}
+		jobEventBytes = b.Bytes()
+		s.events[key] = jobEventBytes
 	}
 
 	key.job = ""
 	eventBytes, ok := s.events[key]
 	if !ok {
 		var b bytes.Buffer
-		s.writeSanitizedKeys(&b, s.prefix, event, suffix)
+		s.writeSanitizedKeys(&b, s.options.Prefix, event, suffix)
 		b.WriteString(":1|c\n")
 
 		eventBytes = b.Bytes()
@@ -312,31 +328,28 @@ func (s *StatsDSink) timingBytes(job, event string, nanos int64) ([]byte, []byte
 	s.writeNanosToTimingBuf(nanos)
 	key := eventKey{job, event, ""}
 
-	var jobEventBytes []byte
-	if !s.SkipNestedEvents {
-		b, ok := s.timingsAndGauges[key]
-		if !ok {
-			b.Buffer = &bytes.Buffer{}
-			s.writeSanitizedKeys(b.Buffer, s.prefix, job, event)
-			b.WriteByte(':')
-			b.prefixLen = b.Len()
-
-			// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
-			b.Grow(16)
-			s.timingsAndGauges[key] = b
-		}
-
-		b.Truncate(b.prefixLen)
-		b.Write(s.timingBuf)
-		b.WriteString("|ms\n")
-		jobEventBytes = b.Bytes()
-	}
-
-	key.job = ""
 	b, ok := s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
-		s.writeSanitizedKeys(b.Buffer, s.prefix, event)
+		s.writeSanitizedKeys(b.Buffer, s.options.Prefix, job, event)
+		b.WriteByte(':')
+		b.prefixLen = b.Len()
+
+		// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
+		b.Grow(16)
+		s.timingsAndGauges[key] = b
+	}
+
+	b.Truncate(b.prefixLen)
+	b.Write(s.timingBuf)
+	b.WriteString("|ms\n")
+	jobEventBytes := b.Bytes()
+
+	key.job = ""
+	b, ok = s.timingsAndGauges[key]
+	if !ok {
+		b.Buffer = &bytes.Buffer{}
+		s.writeSanitizedKeys(b.Buffer, s.options.Prefix, event)
 		b.WriteByte(':')
 		b.prefixLen = b.Len()
 
@@ -358,31 +371,28 @@ func (s *StatsDSink) gaugeBytes(job, event string, value float64) ([]byte, []byt
 	s.timingBuf = strconv.AppendFloat(s.timingBuf, value, 'f', 2, 64)
 	key := eventKey{job, event, ""}
 
-	var jobEventBytes []byte
-	if !s.SkipNestedEvents {
-		b, ok := s.timingsAndGauges[key]
-		if !ok {
-			b.Buffer = &bytes.Buffer{}
-			s.writeSanitizedKeys(b.Buffer, s.prefix, job, event)
-			b.WriteByte(':')
-			b.prefixLen = b.Len()
-
-			// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
-			b.Grow(16)
-			s.timingsAndGauges[key] = b
-		}
-
-		b.Truncate(b.prefixLen)
-		b.Write(s.timingBuf)
-		b.WriteString("|g\n")
-		jobEventBytes = b.Bytes()
-	}
-
-	key.job = ""
 	b, ok := s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
-		s.writeSanitizedKeys(b.Buffer, s.prefix, event)
+		s.writeSanitizedKeys(b.Buffer, s.options.Prefix, job, event)
+		b.WriteByte(':')
+		b.prefixLen = b.Len()
+
+		// 123456789.99|ms\n 16 bytes. timing value represents 11 days max
+		b.Grow(16)
+		s.timingsAndGauges[key] = b
+	}
+
+	b.Truncate(b.prefixLen)
+	b.Write(s.timingBuf)
+	b.WriteString("|g\n")
+	jobEventBytes := b.Bytes()
+
+	key.job = ""
+	b, ok = s.timingsAndGauges[key]
+	if !ok {
+		b.Buffer = &bytes.Buffer{}
+		s.writeSanitizedKeys(b.Buffer, s.options.Prefix, event)
 		b.WriteByte(':')
 		b.prefixLen = b.Len()
 
@@ -406,7 +416,7 @@ func (s *StatsDSink) writeSanitizedKeys(b *bytes.Buffer, keys ...string) {
 			if needDot {
 				b.WriteByte('.')
 			}
-			s.SanitizationFunc(b, k)
+			s.options.SanitizationFunc(b, k)
 			needDot = true
 		}
 	}
