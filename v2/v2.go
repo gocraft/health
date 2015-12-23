@@ -11,6 +11,10 @@ import (
 // TODO:
 // - better sanitization func
 // - tests
+//   - periodic purge
+//   - 1440 limit
+//   -
+//   -
 
 type SanitizationFunc func(string) string
 
@@ -25,7 +29,7 @@ type prefixBuffer struct {
 	prefixLen int
 }
 
-type Sink struct {
+type StatsDSink struct {
 	SanitizationFunc SanitizationFunc
 
 	cmdChan       chan emitCmd
@@ -39,7 +43,8 @@ type Sink struct {
 	prefix      string
 	flushPeriod time.Duration
 
-	udpBuf bytes.Buffer
+	udpBuf    bytes.Buffer
+	timingBuf []byte
 
 	udpConn *net.UDPConn
 	udpAddr *net.UDPAddr
@@ -79,7 +84,7 @@ type emitCmd struct {
 const cmdChanBuffSize = 8192 // random-ass-guess
 const maxUdpBytes = 1440     // 1500(Ethernet MTU) - 60(Max UDP header size
 
-func New(addr, prefix string) (*Sink, error) {
+func NewStatsDSink(addr, prefix string) (*StatsDSink, error) {
 	c, err := net.ListenPacket("udp", ":0")
 	if err != nil {
 		return nil, err
@@ -90,7 +95,7 @@ func New(addr, prefix string) (*Sink, error) {
 		return nil, err
 	}
 
-	s := &Sink{
+	s := &StatsDSink{
 		SanitizationFunc: sanitizeKey,
 		udpConn:          c.(*net.UDPConn),
 		udpAddr:          ra,
@@ -108,37 +113,37 @@ func New(addr, prefix string) (*Sink, error) {
 	return s, nil
 }
 
-func (s *Sink) Stop() {
+func (s *StatsDSink) Stop() {
 	s.cmdChan <- emitCmd{Kind: cmdKindStop}
 	<-s.stopDoneChan
 }
 
-func (s *Sink) Drain() {
+func (s *StatsDSink) Drain() {
 	s.cmdChan <- emitCmd{Kind: cmdKindDrain}
 	<-s.drainDoneChan
 }
 
-func (s *Sink) EmitEvent(job string, event string, kvs map[string]string) {
+func (s *StatsDSink) EmitEvent(job string, event string, kvs map[string]string) {
 	s.cmdChan <- emitCmd{Kind: cmdKindEvent, Job: job, Event: event}
 }
 
-func (s *Sink) EmitEventErr(job string, event string, inputErr error, kvs map[string]string) {
+func (s *StatsDSink) EmitEventErr(job string, event string, inputErr error, kvs map[string]string) {
 	s.cmdChan <- emitCmd{Kind: cmdKindEventErr, Job: job, Event: event}
 }
 
-func (s *Sink) EmitTiming(job string, event string, nanos int64, kvs map[string]string) {
+func (s *StatsDSink) EmitTiming(job string, event string, nanos int64, kvs map[string]string) {
 	s.cmdChan <- emitCmd{Kind: cmdKindTiming, Job: job, Event: event, Nanos: nanos}
 }
 
-func (s *Sink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
+func (s *StatsDSink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
 	s.cmdChan <- emitCmd{Kind: cmdKindGauge, Job: job, Event: event, Value: value}
 }
 
-func (s *Sink) EmitComplete(job string, status health.CompletionStatus, nanos int64, kvs map[string]string) {
+func (s *StatsDSink) EmitComplete(job string, status health.CompletionStatus, nanos int64, kvs map[string]string) {
 	s.cmdChan <- emitCmd{Kind: cmdKindComplete, Job: job, Status: status, Nanos: nanos}
 }
 
-func (s *Sink) loop() {
+func (s *StatsDSink) loop() {
 	cmdChan := s.cmdChan
 
 	ticker := time.NewTicker(s.flushPeriod)
@@ -176,7 +181,7 @@ LOOP:
 	ticker.Stop()
 }
 
-func (s *Sink) processCmd(cmd *emitCmd) {
+func (s *StatsDSink) processCmd(cmd *emitCmd) {
 	switch cmd.Kind {
 	case cmdKindEvent:
 		s.processEvent(cmd.Job, cmd.Event)
@@ -191,34 +196,35 @@ func (s *Sink) processCmd(cmd *emitCmd) {
 	}
 }
 
-func (s *Sink) processEvent(job string, event string) {
+func (s *StatsDSink) processEvent(job string, event string) {
 	b1, b2 := s.eventBytes(job, event, "")
 	s.writeStatsDMetric(b1)
 	s.writeStatsDMetric(b2)
 }
 
-func (s *Sink) processEventErr(job string, event string) {
+func (s *StatsDSink) processEventErr(job string, event string) {
 	b1, b2 := s.eventBytes(job, event, "error")
 	s.writeStatsDMetric(b1)
 	s.writeStatsDMetric(b2)
 }
 
-func (s *Sink) processTiming(job string, event string, nanos int64) {
+func (s *StatsDSink) processTiming(job string, event string, nanos int64) {
 	b1, b2 := s.timingBytes(job, event, nanos)
 	s.writeStatsDMetric(b1)
 	s.writeStatsDMetric(b2)
 }
 
-func (s *Sink) processGauge(job string, event string, value float64) {
+func (s *StatsDSink) processGauge(job string, event string, value float64) {
 	b1, b2 := s.gaugeBytes(job, event, value)
 	s.writeStatsDMetric(b1)
 	s.writeStatsDMetric(b2)
 }
 
-func (s *Sink) processComplete(job string, status health.CompletionStatus, nanos int64) {
+func (s *StatsDSink) processComplete(job string, status health.CompletionStatus, nanos int64) {
+	s.writeNanosToTimingBuf(nanos)
+
 	statusString := status.String()
 	key := eventKey{job, "", statusString}
-
 	b, ok := s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
@@ -232,13 +238,13 @@ func (s *Sink) processComplete(job string, status health.CompletionStatus, nanos
 	}
 
 	b.Truncate(b.prefixLen)
-	writeNanos(b.Buffer, nanos)
+	b.Write(s.timingBuf)
 	b.WriteString("|ms\n")
 
 	s.writeStatsDMetric(b.Bytes())
 }
 
-func (s *Sink) flush() {
+func (s *StatsDSink) flush() {
 	if s.udpBuf.Len() > 0 {
 		s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
 		s.udpBuf.Truncate(0)
@@ -246,7 +252,7 @@ func (s *Sink) flush() {
 }
 
 // assumes b is a well-formed statsd metric like "job.event:1|c\n" (including newline)
-func (s *Sink) writeStatsDMetric(b []byte) {
+func (s *StatsDSink) writeStatsDMetric(b []byte) {
 	lenb := len(b)
 	lenUdpBuf := s.udpBuf.Len()
 
@@ -263,8 +269,8 @@ func (s *Sink) writeStatsDMetric(b []byte) {
 	s.udpBuf.Write(b)
 }
 
-// returns {bytes for job+event, bytes for event}
-func (s *Sink) eventBytes(job, event, suffix string) ([]byte, []byte) {
+// returns {bytes for event, bytes for job+event}
+func (s *StatsDSink) eventBytes(job, event, suffix string) ([]byte, []byte) {
 	key := eventKey{job, event, suffix}
 
 	jobEventBytes, ok := s.events[key]
@@ -288,12 +294,13 @@ func (s *Sink) eventBytes(job, event, suffix string) ([]byte, []byte) {
 		s.events[key] = eventBytes
 	}
 
-	return jobEventBytes, eventBytes
+	return eventBytes, jobEventBytes
 }
 
-func (s Sink) timingBytes(job, event string, nanos int64) ([]byte, []byte) {
-	key := eventKey{job, event, ""}
+func (s *StatsDSink) timingBytes(job, event string, nanos int64) ([]byte, []byte) {
+	s.writeNanosToTimingBuf(nanos)
 
+	key := eventKey{job, event, ""}
 	b, ok := s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
@@ -307,7 +314,7 @@ func (s Sink) timingBytes(job, event string, nanos int64) ([]byte, []byte) {
 	}
 
 	b.Truncate(b.prefixLen)
-	writeNanos(b.Buffer, nanos)
+	b.Write(s.timingBuf)
 	b.WriteString("|ms\n")
 	jobEventBytes := b.Bytes()
 
@@ -325,16 +332,18 @@ func (s Sink) timingBytes(job, event string, nanos int64) ([]byte, []byte) {
 	}
 
 	b.Truncate(b.prefixLen)
-	writeNanos(b.Buffer, nanos)
+	b.Write(s.timingBuf)
 	b.WriteString("|ms\n")
 	eventBytes := b.Bytes()
 
-	return jobEventBytes, eventBytes
+	return eventBytes, jobEventBytes
 }
 
-func (s Sink) gaugeBytes(job, event string, value float64) ([]byte, []byte) {
-	key := eventKey{job, event, ""}
+func (s *StatsDSink) gaugeBytes(job, event string, value float64) ([]byte, []byte) {
+	s.timingBuf = s.timingBuf[0:0]
+	s.timingBuf = strconv.AppendFloat(s.timingBuf, value, 'f', 2, 64)
 
+	key := eventKey{job, event, ""}
 	b, ok := s.timingsAndGauges[key]
 	if !ok {
 		b.Buffer = &bytes.Buffer{}
@@ -348,7 +357,7 @@ func (s Sink) gaugeBytes(job, event string, value float64) ([]byte, []byte) {
 	}
 
 	b.Truncate(b.prefixLen)
-	strconv.AppendFloat(b.Bytes(), value, 'f', 2, 64)
+	b.Write(s.timingBuf)
 	b.WriteString("|g\n")
 	jobEventBytes := b.Bytes()
 
@@ -366,14 +375,14 @@ func (s Sink) gaugeBytes(job, event string, value float64) ([]byte, []byte) {
 	}
 
 	b.Truncate(b.prefixLen)
-	strconv.AppendFloat(b.Bytes(), value, 'f', 2, 64)
+	b.Write(s.timingBuf)
 	b.WriteString("|g\n")
 	eventBytes := b.Bytes()
 
-	return jobEventBytes, eventBytes
+	return eventBytes, jobEventBytes
 }
 
-func (s *Sink) writeSanitizedKeys(b *bytes.Buffer, keys ...string) {
+func (s *StatsDSink) writeSanitizedKeys(b *bytes.Buffer, keys ...string) {
 	needDot := false
 	for _, k := range keys {
 		if k != "" {
@@ -386,12 +395,13 @@ func (s *Sink) writeSanitizedKeys(b *bytes.Buffer, keys ...string) {
 	}
 }
 
-func writeNanos(b *bytes.Buffer, nanos int64) {
+func (s *StatsDSink) writeNanosToTimingBuf(nanos int64) {
+	s.timingBuf = s.timingBuf[0:0]
 	if nanos >= 10e6 {
 		// More than 10 milliseconds. We'll just print as an integer
-		strconv.AppendInt(b.Bytes(), nanos/1e6, 10)
+		s.timingBuf = strconv.AppendInt(s.timingBuf, nanos/1e6, 10)
 	} else {
-		strconv.AppendFloat(b.Bytes(), float64(nanos)/float64(time.Millisecond), 'f', 2, 64)
+		s.timingBuf = strconv.AppendFloat(s.timingBuf, float64(nanos)/float64(time.Millisecond), 'f', 2, 64)
 	}
 }
 
