@@ -7,11 +7,6 @@ import (
 	"time"
 )
 
-// TODO:
-// - tests
-//   - periodic purge
-//   - 1440 limit
-
 type StatsDSinkSanitizationFunc func(*bytes.Buffer, string)
 
 type eventKey struct {
