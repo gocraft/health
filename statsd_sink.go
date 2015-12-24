@@ -291,7 +291,6 @@ func (s *StatsDSink) flush() {
 func (s *StatsDSink) writeStatsDMetric(b []byte) {
 	lenb := len(b)
 
-	// This can happen based on the design of the system -- if we choose not to send a metric, we'll use nil.
 	if lenb == 0 {
 		return
 	}
