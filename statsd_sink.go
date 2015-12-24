@@ -11,13 +11,6 @@ import (
 // - tests
 //   - periodic purge
 //   - 1440 limit
-// - benchmark for event
-// - benchmark for timing
-// - benchmark for gauge
-// - benchmark for complete
-// - overall benchmark
-// - option for single emit
-//   - tests
 
 type StatsDSinkSanitizationFunc func(*bytes.Buffer, string)
 

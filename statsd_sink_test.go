@@ -1,12 +1,12 @@
 package health
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -265,46 +265,86 @@ func TestStatsDSinkEmitTimingSubMillisecond(t *testing.T) {
 	})
 }
 
-func BenchmarkSanitize(b *testing.B) {
-	key := "prefix.|j|o|b|.my_cool_event:1"
-	buf := bytes.Buffer{}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		sanitizeKey(&buf, key)
-		buf.Truncate(0)
-	}
-}
-
-func BenchmarkProcessEvent(b *testing.B) {
-	const maxJobs = 50
-	const maxEvents = 100
-	jobs := []string{}
-	events := []string{}
-	for i := 0; i < maxJobs; i++ {
-		jobs = append(jobs, fmt.Sprintf("job%d", i))
-	}
-	for i := 0; i < maxEvents; i++ {
-		events = append(events, fmt.Sprintf("event%d", i))
-	}
-
-	curJob := 0
-	curEvent := 0
-
+func BenchmarkStatsDSinkProcessEvent(b *testing.B) {
 	sink, _ := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
 	sink.Stop() // Don't do periodic things while we're benching
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sink.processEvent(jobs[curJob], events[curEvent])
-
-		// cycle thru jobs/events:
-		curEvent++
-		if curEvent == maxEvents {
-			curEvent = 0
-			curJob++
-			if curJob == maxJobs {
-				curJob = 0
-			}
-		}
+		sink.processEvent("myjob", "myevent")
 	}
+}
+
+func BenchmarkStatsDSinkProcessEventErr(b *testing.B) {
+	sink, _ := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
+	sink.Stop() // Don't do periodic things while we're benching
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sink.processEventErr("myjob", "myevent")
+	}
+}
+
+func BenchmarkStatsDSinkProcessTimingBig(b *testing.B) {
+	sink, _ := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
+	sink.Stop() // Don't do periodic things while we're benching
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sink.processTiming("myjob", "myevent", 30000000)
+	}
+}
+
+func BenchmarkStatsDSinkProcessTimingSmall(b *testing.B) {
+	sink, _ := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
+	sink.Stop() // Don't do periodic things while we're benching
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sink.processTiming("myjob", "myevent", 1230000)
+	}
+}
+
+func BenchmarkStatsDSinkProcessGauge(b *testing.B) {
+	sink, _ := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
+	sink.Stop() // Don't do periodic things while we're benching
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sink.processGauge("myjob", "myevent", 3.14)
+	}
+}
+
+func BenchmarkStatsDSinkProcessComplete(b *testing.B) {
+	sink, _ := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
+	sink.Stop() // Don't do periodic things while we're benching
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sink.processComplete("myjob", Success, 1230000)
+	}
+}
+
+func BenchmarkStatsDSinkOverall(b *testing.B) {
+	const numGoroutines = 100
+	var requestsPerGoroutine = b.N / numGoroutines
+
+	stream := NewStream()
+	sink, _ := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
+	stream.AddSink(sink)
+	job := stream.NewJob("foo")
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func() {
+			for j := 0; j < requestsPerGoroutine; j++ {
+				job.Event("evt")
+			}
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+	sink.Drain()
 }
