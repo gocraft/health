@@ -194,3 +194,37 @@ func BenchmarkSanitize(b *testing.B) {
 		buf.Truncate(0)
 	}
 }
+
+func BenchmarkProcessEvent(b *testing.B) {
+	const maxJobs = 50
+	const maxEvents = 100
+	jobs := []string{}
+	events := []string{}
+	for i := 0; i < maxJobs; i++ {
+		jobs = append(jobs, fmt.Sprintf("job%d", i))
+	}
+	for i := 0; i < maxEvents; i++ {
+		events = append(events, fmt.Sprintf("event%d", i))
+	}
+
+	curJob := 0
+	curEvent := 0
+
+	sink, _ := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid"})
+	sink.Stop() // Don't do periodic things while we're benching
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sink.processEvent(jobs[curJob], events[curEvent])
+
+		// cycle thru jobs/events:
+		curEvent++
+		if curEvent == maxEvents {
+			curEvent = 0
+			curJob++
+			if curJob == maxJobs {
+				curJob = 0
+			}
+		}
+	}
+}
