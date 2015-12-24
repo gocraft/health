@@ -12,7 +12,10 @@ import (
 //   - periodic purge
 //   - 1440 limit
 // - benchmark for event
-// - clean up code
+// - benchmark for timing
+// - benchmark for gauge
+// - benchmark for complete
+// - overall benchmark
 // - option for single emit
 //   - tests
 
@@ -215,52 +218,68 @@ func (s *StatsDSink) processCmd(cmd *statsdEmitCmd) {
 }
 
 func (s *StatsDSink) processEvent(job string, event string) {
-	pb := s.getPrefixBuffer("", event, "")
-	pb.WriteString("1|c\n")
-	s.writeStatsDMetric(pb.Bytes())
+	if !s.options.SkipTopLevelEvents {
+		pb := s.getPrefixBuffer("", event, "")
+		pb.WriteString("1|c\n")
+		s.writeStatsDMetric(pb.Bytes())
+	}
 
-	pb = s.getPrefixBuffer(job, event, "")
-	pb.WriteString("1|c\n")
-	s.writeStatsDMetric(pb.Bytes())
+	if !s.options.SkipNestedEvents {
+		pb := s.getPrefixBuffer(job, event, "")
+		pb.WriteString("1|c\n")
+		s.writeStatsDMetric(pb.Bytes())
+	}
 }
 
 func (s *StatsDSink) processEventErr(job string, event string) {
-	pb := s.getPrefixBuffer("", event, "error")
-	pb.WriteString("1|c\n")
-	s.writeStatsDMetric(pb.Bytes())
+	if !s.options.SkipTopLevelEvents {
+		pb := s.getPrefixBuffer("", event, "error")
+		pb.WriteString("1|c\n")
+		s.writeStatsDMetric(pb.Bytes())
+	}
 
-	pb = s.getPrefixBuffer(job, event, "error")
-	pb.WriteString("1|c\n")
-	s.writeStatsDMetric(pb.Bytes())
+	if !s.options.SkipNestedEvents {
+		pb := s.getPrefixBuffer(job, event, "error")
+		pb.WriteString("1|c\n")
+		s.writeStatsDMetric(pb.Bytes())
+	}
 }
 
 func (s *StatsDSink) processTiming(job string, event string, nanos int64) {
 	s.writeNanosToTimingBuf(nanos)
 
-	pb := s.getPrefixBuffer("", event, "")
-	pb.Write(s.timingBuf)
-	pb.WriteString("|ms\n")
-	s.writeStatsDMetric(pb.Bytes())
+	if !s.options.SkipTopLevelEvents {
+		pb := s.getPrefixBuffer("", event, "")
+		pb.Write(s.timingBuf)
+		pb.WriteString("|ms\n")
+		s.writeStatsDMetric(pb.Bytes())
+	}
 
-	pb = s.getPrefixBuffer(job, event, "")
-	pb.Write(s.timingBuf)
-	pb.WriteString("|ms\n")
-	s.writeStatsDMetric(pb.Bytes())
+	if !s.options.SkipNestedEvents {
+		pb := s.getPrefixBuffer(job, event, "")
+		pb.Write(s.timingBuf)
+		pb.WriteString("|ms\n")
+		s.writeStatsDMetric(pb.Bytes())
+	}
 }
 
 func (s *StatsDSink) processGauge(job string, event string, value float64) {
 	s.timingBuf = s.timingBuf[0:0]
 	s.timingBuf = strconv.AppendFloat(s.timingBuf, value, 'f', 2, 64)
 
-	pb := s.getPrefixBuffer("", event, "")
-	pb.Write(s.timingBuf)
-	pb.WriteString("|g\n")
-	s.writeStatsDMetric(pb.Bytes())
+	if !s.options.SkipTopLevelEvents {
+		pb := s.getPrefixBuffer("", event, "")
+		pb.Write(s.timingBuf)
+		pb.WriteString("|g\n")
+		s.writeStatsDMetric(pb.Bytes())
+	}
 
-	pb = s.getPrefixBuffer(job, event, "")
-	pb.Write(s.timingBuf)
-	pb.WriteString("|g\n")
-	s.writeStatsDMetric(pb.Bytes())
+	if !s.options.SkipNestedEvents {
+		pb := s.getPrefixBuffer(job, event, "")
+		pb.Write(s.timingBuf)
+		pb.WriteString("|g\n")
+		s.writeStatsDMetric(pb.Bytes())
+	}
 }
 
 func (s *StatsDSink) processComplete(job string, status CompletionStatus, nanos int64) {
