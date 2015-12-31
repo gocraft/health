@@ -228,6 +228,18 @@ func TestStatsDSinkEmitGaugePrefix(t *testing.T) {
 	})
 }
 
+func TestStatsDSinkEmitGaugeSmall(t *testing.T) {
+	sink, err := NewStatsDSink(testAddr, &StatsDSinkOptions{Prefix: "metroid", SkipNestedEvents: true})
+	defer sink.Stop()
+	assert.NoError(t, err)
+	listenFor(t, []string{"metroid.my.event:0.14|g\nmetroid.my.event:0.0401|g\nmetroid.my.event:-0.0001|g\n"}, func() {
+		sink.EmitGauge("my.job", "my.event", 0.1401, nil)
+		sink.EmitGauge("my.job", "my.event", 0.0401, nil)
+		sink.EmitGauge("my.job", "my.event", -0.0001, nil)
+		sink.Drain()
+	})
+}
+
 func TestStatsDSinkEmitGaugeNoPrefix(t *testing.T) {
 	sink, err := NewStatsDSink(testAddr, nil)
 	defer sink.Stop()
