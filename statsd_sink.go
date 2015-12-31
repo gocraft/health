@@ -253,7 +253,11 @@ func (s *StatsDSink) processTiming(job string, event string, nanos int64) {
 
 func (s *StatsDSink) processGauge(job string, event string, value float64) {
 	s.timingBuf = s.timingBuf[0:0]
-	s.timingBuf = strconv.AppendFloat(s.timingBuf, value, 'f', 2, 64)
+	prec := 2
+	if value < 0.0 {
+		prec = -1
+	}
+	s.timingBuf = strconv.AppendFloat(s.timingBuf, value, 'f', prec, 64)
 
 	if !s.options.SkipTopLevelEvents {
 		pb := s.getPrefixBuffer("", event, "")
