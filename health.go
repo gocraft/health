@@ -1,6 +1,9 @@
 package health
 
 import (
+	"errors"
+	"fmt"
+	"runtime"
 	"time"
 )
 
@@ -210,4 +213,33 @@ func (j *Job) mergedKeyValues(instanceKvs map[string]string) map[string]string {
 	}
 
 	return allKvs
+}
+
+func (s *Stream) Run(jobName string, f func() error) error {
+	j := s.NewJob(jobName)
+	return j.Run(f)
+}
+
+func (j *Job) Run(f func() error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			stack := make([]byte, 4096)
+			stack = stack[:runtime.Stack(stack, false)]
+
+			// recovered value from panic() is an interface{}, and it might not be `error`
+			// do not simply type-assert here
+			err = errors.New(fmt.Sprint(r))
+			j.EventErrKv("panic", err, Kvs{"stack": string(stack)})
+			j.Complete(Panic)
+		}
+	}()
+
+	err = f()
+	if err != nil {
+		j.Complete(Error)
+	} else {
+		j.Complete(Success)
+	}
+
+	return
 }
