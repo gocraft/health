@@ -361,7 +361,7 @@ func sanitizeKey(b *bytes.Buffer, s string) {
 	b.Grow(len(s) + 1)
 	for i := 0; i < len(s); i++ {
 		si := s[i]
-		if ('A' <= si && si <= 'Z') || ('a' <= si && si <= 'z') || ('0' <= si && s[i] <= '9') || si == '_' || si == '.' {
+		if ('A' <= si && si <= 'Z') || ('a' <= si && si <= 'z') || ('0' <= si && s[i] <= '9') || si == '-' || si == '_' || si == '.' {
 			b.WriteByte(si)
 		} else {
 			b.WriteByte('$')
