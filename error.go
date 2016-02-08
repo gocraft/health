@@ -1,6 +1,8 @@
 package health
 
 import (
+	"strings"
+
 	"github.com/gocraft/health/stack"
 )
 
@@ -33,4 +35,14 @@ func wrapErr(err error) error {
 	default:
 		return &UnmutedError{Err: err, Stack: stack.NewTrace(2)}
 	}
+}
+
+func muteErrIfContains(err error, s ...string) error {
+	errStr := err.Error()
+	for _, ignore := range s {
+		if strings.Contains(errStr, ignore) {
+			return Mute(err)
+		}
+	}
+	return err
 }

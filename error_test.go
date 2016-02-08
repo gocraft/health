@@ -2,8 +2,9 @@ package health
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestUnmutedErrors(t *testing.T) {
@@ -79,4 +80,35 @@ func TestMutedErrors(t *testing.T) {
 	// LastErr has Emitted=false, WasUnmuted=true
 	assert.NotNil(t, sink.LastErr)
 	assert.True(t, sink.LastErrMuted)
+}
+
+func TestMutedSubstringErrors(t *testing.T) {
+	stream := NewStream()
+	sink := &testSink{}
+	stream.AddSink(sink)
+	job := stream.NewJob("myjob")
+	job.MuteErrorSubstring("wat")
+
+	// Try a mutable error
+	origErr := fmt.Errorf("wat")
+	retErr := job.EventErr("abcd", origErr)
+
+	// retErr is an MutedError with Emitted=true
+	if retErr, ok := retErr.(*MutedError); ok {
+		assert.Equal(t, retErr.Err, origErr)
+	} else {
+		t.Errorf("expected retErr to be an *MutedError")
+	}
+
+	// LastErr has Emitted=false, WasUnmuted=true
+	assert.NotNil(t, sink.LastErr)
+	assert.True(t, sink.LastErrMuted)
+
+	// Try a non-mutable error
+	origErr = fmt.Errorf("nonmatchingstring")
+	retErr = job.EventErr("abcd", origErr)
+
+	// retErr is an MutedError with Emitted=true
+	_, ok := retErr.(*MutedError)
+	assert.False(t, ok)
 }

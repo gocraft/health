@@ -29,10 +29,11 @@ type Stream struct {
 }
 
 type Job struct {
-	Stream    *Stream
-	JobName   string
-	KeyValues map[string]string
-	Start     time.Time
+	Stream          *Stream
+	JobName         string
+	KeyValues       map[string]string
+	Start           time.Time
+	MutedSubstrings []string
 }
 
 type CompletionStatus int
@@ -86,9 +87,10 @@ func (s *Stream) KeyValue(key string, value string) *Stream {
 
 func (s *Stream) NewJob(name string) *Job {
 	return &Job{
-		Stream:  s,
-		JobName: name,
-		Start:   time.Now(),
+		Stream:          s,
+		JobName:         name,
+		Start:           time.Now(),
+		MutedSubstrings: []string{},
 	}
 }
 
@@ -115,6 +117,7 @@ func (j *Job) EventKv(eventName string, kvs map[string]string) {
 }
 
 func (j *Job) EventErr(eventName string, err error) error {
+	err = muteErrIfContains(err, j.MutedSubstrings...)
 	err = wrapErr(err)
 	allKvs := j.mergedKeyValues(nil)
 	for _, sink := range j.Stream.Sinks {
@@ -127,6 +130,7 @@ func (j *Job) EventErr(eventName string, err error) error {
 }
 
 func (j *Job) EventErrKv(eventName string, err error, kvs map[string]string) error {
+	err = muteErrIfContains(err, j.MutedSubstrings...)
 	err = wrapErr(err)
 	allKvs := j.mergedKeyValues(kvs)
 	for _, sink := range j.Stream.Sinks {
@@ -242,4 +246,8 @@ func (j *Job) Run(f func() error) (err error) {
 	}
 
 	return
+}
+
+func (j *Job) MuteErrorSubstring(str string) {
+	j.MutedSubstrings = append(j.MutedSubstrings, str)
 }
