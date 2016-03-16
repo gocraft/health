@@ -189,6 +189,8 @@ func printCellString(text string, table *goterm.Table, isBold, isGreen, isRed bo
 		color = goterm.GREEN
 	} else if isRed {
 		color = goterm.RED
+	} else if isDarkBackground {
+		color = goterm.WHITE
 	}
 
 	fmt.Fprintf(table, "%s\t", format(text, color, isBold))
