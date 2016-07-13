@@ -11,16 +11,17 @@ import (
 )
 
 type InfluxDBSink struct {
-	db       string
-	dbhost   string
-	hostname string
-	notifier Notifier
-	client   *client.Client
-	batchA   client.BatchPoints
-	batchB   client.BatchPoints
-	curBatch *client.BatchPoints
-	swChan   <-chan time.Time
-	In       chan *client.Point
+	db        string
+	dbhost    string
+	hostname  string
+	precision string
+	notifier  Notifier
+	client    *client.Client
+	batchA    client.BatchPoints
+	batchB    client.BatchPoints
+	curBatch  *client.BatchPoints
+	swChan    <-chan time.Time
+	In        chan *client.Point
 }
 
 type Notifier interface {
@@ -157,24 +158,25 @@ func (s *InfluxDBSink) switchBatch() *client.BatchPoints {
 func (s *InfluxDBSink) createBatch() client.BatchPoints {
 	b, _ := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  s.db,
-		Precision: "s",
+		Precision: s.precision,
 	})
 	return b
 }
 
-func SetupInfluxDBSink(db, hostname string, notifier Notifier) *InfluxDBSink {
+func SetupInfluxDBSink(db, hostname, precision string, notifier Notifier) *InfluxDBSink {
 	dbhost := os.Getenv("INFLUXDB_HOST")
 	if dbhost == "" {
 		return &InfluxDBSink{}
 	}
 
 	s := InfluxDBSink{
-		hostname: hostname,
-		dbhost:   dbhost,
-		db:       db,
-		notifier: notifier,
-		swChan:   time.Tick(200 * time.Millisecond),
-		In:       make(chan *client.Point, 1000),
+		hostname:  hostname,
+		dbhost:    dbhost,
+		db:        db, // note: if using UDP the database is configured by the UDP service
+		precision: precision,
+		notifier:  notifier,
+		swChan:    time.Tick(200 * time.Millisecond),
+		In:        make(chan *client.Point, 1000),
 	}
 
 	s.connect()
