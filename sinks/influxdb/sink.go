@@ -10,6 +10,10 @@ import (
 	"github.com/pubnative/health"
 )
 
+const bufferSize = 10000
+const ticker = 200 * time.Millisecond
+var chanFullErr = errors.New("InfluxDB channel full, dropping point")
+
 type InfluxDBSink struct {
 	db        string
 	dbhost    string
@@ -17,10 +21,6 @@ type InfluxDBSink struct {
 	precision string
 	notifier  Notifier
 	client    *client.Client
-	batchA    client.BatchPoints
-	batchB    client.BatchPoints
-	curBatch  *client.BatchPoints
-	swChan    <-chan time.Time
 	In        chan *client.Point
 }
 
@@ -59,11 +59,6 @@ func (s InfluxDBSink) EmitComplete(job string, status health.CompletionStatus, n
 	s.emitPoint(job, kvs, timing)
 }
 
-const limit = 1000000
-
-var chanFullErr = errors.New("InfluxDB channel full, dropping point")
-var bufferFullErr = errors.New("InfluxDB point buffer overflow, dropping point")
-
 func (s *InfluxDBSink) emitPoint(
 	name string,
 	tags map[string]string,
@@ -86,26 +81,6 @@ func (s *InfluxDBSink) emitPoint(
 		}
 	} else if s.notifier != nil {
 		s.notifier.Notify(err)
-	}
-}
-
-func (s *InfluxDBSink) sink() {
-	for {
-		select {
-		case <-s.swChan:
-			toSend := s.switchBatch()
-			go s.send(toSend)
-		case p := <-s.In:
-			s.bufferPoint(p)
-		}
-	}
-}
-
-func (s *InfluxDBSink) bufferPoint(p *client.Point) {
-	if len((*s.curBatch).Points()) >= limit {
-		s.notifier.Notify(bufferFullErr)
-	} else {
-		(*s.curBatch).AddPoint(p)
 	}
 }
 
@@ -143,18 +118,6 @@ func (s *InfluxDBSink) connect() {
 	}
 }
 
-func (s *InfluxDBSink) switchBatch() *client.BatchPoints {
-	if s.curBatch == &s.batchA {
-		s.batchB = s.createBatch()
-		s.curBatch = &s.batchB
-		return &s.batchA
-	} else {
-		s.batchA = s.createBatch()
-		s.curBatch = &s.batchA
-		return &s.batchB
-	}
-}
-
 func (s *InfluxDBSink) createBatch() client.BatchPoints {
 	b, _ := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  s.db,
@@ -163,7 +126,41 @@ func (s *InfluxDBSink) createBatch() client.BatchPoints {
 	return b
 }
 
-func SetupInfluxDBSink(db, hostname, precision string, notifier Notifier) *InfluxDBSink {
+func (s *InfluxDBSink) spawnWorker() {
+	w := worker{
+		sink: s,
+		swTick: time.Tick(ticker),
+		batch: s.createBatch(),
+	}
+
+	go w.process()
+}
+
+type worker struct {
+	sink    *InfluxDBSink
+	swTick  <-chan time.Time
+	batch   client.BatchPoints
+}
+
+func (w *worker) process() {
+	for {
+		select {
+		case <-w.swTick:
+			w.send()
+		case point := <-w.sink.In:
+			w.batch.AddPoint(point)
+		}
+	}
+}
+
+func (w *worker) send() {
+	toSend := w.batch
+	w.batch = w.sink.createBatch()
+	go w.sink.send(&toSend)
+}
+
+
+func SetupInfluxDBSink(db, hostname, precision string, notifier Notifier, workers int) *InfluxDBSink {
 	dbhost := os.Getenv("INFLUXDB_HOST")
 	if dbhost == "" {
 		return &InfluxDBSink{}
@@ -175,16 +172,14 @@ func SetupInfluxDBSink(db, hostname, precision string, notifier Notifier) *Influ
 		db:        db, // note: if using UDP the database is configured by the UDP service
 		precision: precision,
 		notifier:  notifier,
-		swChan:    time.Tick(200 * time.Millisecond),
-		In:        make(chan *client.Point, 1000),
+		In:        make(chan *client.Point, bufferSize),
 	}
 
 	s.connect()
-	s.batchA = s.createBatch()
-	s.batchB = s.createBatch()
-	s.curBatch = &s.batchA
 
-	go s.sink()
+	for i := 0; i < workers; i++ {
+		s.spawnWorker()
+	}
 
 	return &s
 }
