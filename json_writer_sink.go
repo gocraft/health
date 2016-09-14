@@ -8,6 +8,7 @@ import (
 
 type JsonWriterSink struct {
 	io.Writer
+	AppendNewline bool
 }
 
 func (j *JsonWriterSink) EmitEvent(job string, event string, kvs map[string]string) {
@@ -23,6 +24,10 @@ func (j *JsonWriterSink) EmitEvent(job string, event string, kvs map[string]stri
 		return
 	}
 	j.Write(b)
+
+	if j.AppendNewline {
+		j.Write([]byte{'\n'})
+	}
 }
 
 func (j *JsonWriterSink) EmitEventErr(job string, event string, err error, kvs map[string]string) {
@@ -55,6 +60,9 @@ func (j *JsonWriterSink) EmitTiming(job string, event string, nanoseconds int64,
 		return
 	}
 	j.Write(b)
+	if j.AppendNewline {
+		j.Write([]byte{'\n'})
+	}
 }
 
 func (j *JsonWriterSink) EmitGauge(job string, event string, value float64, kvs map[string]string) {
@@ -71,6 +79,9 @@ func (j *JsonWriterSink) EmitGauge(job string, event string, value float64, kvs 
 		return
 	}
 	j.Write(b)
+	if j.AppendNewline {
+		j.Write([]byte{'\n'})
+	}
 }
 
 func (j *JsonWriterSink) EmitComplete(job string, status CompletionStatus, nanoseconds int64, kvs map[string]string) {
@@ -87,4 +98,7 @@ func (j *JsonWriterSink) EmitComplete(job string, status CompletionStatus, nanos
 		return
 	}
 	j.Write(b)
+	if j.AppendNewline {
+		j.Write([]byte{'\n'})
+	}
 }
