@@ -2,7 +2,6 @@ package influxdb
 
 import (
 	"errors"
-	"os"
 	"strings"
 	"time"
 
