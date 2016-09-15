@@ -112,10 +112,7 @@ func TestJsonNewlineWriterSinkEventGauge(t *testing.T) {
 	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
 	sink.EmitGauge("myjob", "myevent", 3.14, someKvs)
 
-	assert.Contains(t, buf.String(), "\n")
-
-	buf.Reset()
-	sink.EmitEventErr("myjob", "myevent", errors.New("test err"), someKvs)
+	assert.Equal(t, buf.String()[buf.Len()-1:], "\n")
 }
 
 func BenchmarkJsonWriterSinkEmitBlankEvent(b *testing.B) {
