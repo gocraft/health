@@ -160,15 +160,14 @@ func (w *worker) send() {
 }
 
 
-func SetupInfluxDBSink(db, hostname, precision string, notifier Notifier, workers int) *InfluxDBSink {
-	dbhost := os.Getenv("INFLUXDB_HOST")
-	if dbhost == "" {
+func SetupInfluxDBSink(db, dbHost, hostname, precision string, notifier Notifier, workers int) *InfluxDBSink {
+	if dbHost == "" {
 		return &InfluxDBSink{}
 	}
 
 	s := InfluxDBSink{
 		hostname:  hostname,
-		dbhost:    dbhost,
+		dbhost:    dbHost,
 		db:        db, // note: if using UDP the database is configured by the UDP service
 		precision: precision,
 		notifier:  notifier,
