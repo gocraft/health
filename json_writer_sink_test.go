@@ -106,6 +106,18 @@ func TestJsonWriterSinkEventComplete(t *testing.T) {
 	}
 }
 
+func TestJsonNewlineWriterSinkEventGauge(t *testing.T) {
+	var buf bytes.Buffer
+	sink := NewJsonNewlineWriterSink(&buf)
+	someKvs := map[string]string{"foo": "bar", "qux": "dog"}
+	sink.EmitGauge("myjob", "myevent", 3.14, someKvs)
+
+	assert.Contains(t, buf.String(), "\n")
+
+	buf.Reset()
+	sink.EmitEventErr("myjob", "myevent", errors.New("test err"), someKvs)
+}
+
 func BenchmarkJsonWriterSinkEmitBlankEvent(b *testing.B) {
 	var buf bytes.Buffer
 	sink := JsonWriterSink{&buf}
