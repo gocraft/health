@@ -13,6 +13,7 @@ First, you'll want to make a new Stream and attach your sinks to it. Streams are
 ```go
 import (
 	"github.com/gocraft/health"
+	"github.com/gocraft/health/sinks/sentry"
 	"github.com/gocraft/health/sinks/bugsnag"
 	"os"
 )
@@ -37,9 +38,15 @@ func main() {
 	sink := health.NewJsonPollingSink(time.Minute, time.Minute*5)
 	stream.AddSink(sink)
 	sink.StartServer(addr)
-
+	
 	// Send errors to bugsnag!
 	stream.AddSink(bugsnag.NewSink(&bugsnag.Config{APIKey: "myApiKey"}))
+	
+	// And Sentry, too!
+	stream.AddSink(sentry.NewSink(&sentry.Config{URL:"http://somecode:somecode@localhost/2",ErrorsOnly:true}))
+	
+	// You can send all events to Sentry if you want.
+	// stream.AddSink(sentry.NewSink(&sentry.Config{URL:"http://somecode:somecode@localhost/2",ErrorsOnly:false}))
 
 	// Now that your stream is setup, start a web server or something...
 }
