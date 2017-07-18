@@ -1,12 +1,10 @@
 package influxdb
 
 import (
+	"sort"
+	"strings"
 	"testing"
 	"time"
-
-	"strings"
-
-	"sort"
 
 	"github.com/gocraft/health"
 	"github.com/influxdata/influxdb/client/v2"
@@ -60,7 +58,7 @@ func TestSinkWorker(t *testing.T) {
 
 	assert.Equal(t, strings.Join(str, ""+
 		"\n"),
-`abc,-z=1ko,x0^=y. error=2i,ev1=3i
+		`abc,-z=1ko,x0^=y. error=2i,ev1=3i
 abc,-z=1xo,event=ev1,x0?=y. gauge=1 
 abc,-z=1xo,event=ev1,x0?=y. gauge=1 
 abc,-z=1xo,event=ev1,x0?=y. timing=12345i 

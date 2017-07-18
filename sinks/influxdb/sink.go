@@ -1,12 +1,11 @@
 package influxdb
 
 import (
+	"bytes"
 	"errors"
+	"sort"
 	"strings"
 	"time"
-
-	"bytes"
-	"sort"
 
 	"github.com/influxdata/influxdb/client/v2"
 	"github.com/pubnative/health"
