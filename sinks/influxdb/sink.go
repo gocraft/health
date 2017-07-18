@@ -5,12 +5,16 @@ import (
 	"strings"
 	"time"
 
+	"bytes"
+	"sort"
+
 	"github.com/influxdata/influxdb/client/v2"
 	"github.com/pubnative/health"
 )
 
 const bufferSize = 10000
-const ticker = 200 * time.Millisecond
+const ticker = 1 * time.Second
+
 var chanFullErr = errors.New("InfluxDB channel full, dropping point")
 
 type InfluxDBSink struct {
@@ -19,12 +23,29 @@ type InfluxDBSink struct {
 	hostname  string
 	precision string
 	notifier  Notifier
-	client    *client.Client
-	In        chan *client.Point
+	client    client.Client
+	In        chan *point
 }
 
 type Notifier interface {
 	Notify(err error)
+}
+
+type pointsBatch map[string]*point
+type point struct {
+	name   string
+	tags   map[string]string
+	fields map[string]interface{}
+	time   time.Time
+}
+
+func (p *point) makePoint() (*client.Point, error) {
+	return client.NewPoint(p.name, p.tags, p.fields, p.time)
+}
+func (p *point) canAggregate() bool {
+	_, isTiming := p.fields["timing"]
+	_, isGauge := p.fields["gauge"]
+	return !isTiming && !isGauge
 }
 
 func (s InfluxDBSink) EmitEvent(job string, event string, kvs map[string]string) {
@@ -70,27 +91,24 @@ func (s *InfluxDBSink) emitPoint(
 		tags = make(map[string]string)
 	}
 	tags["hostname"] = s.hostname
-	if p, err := client.NewPoint(name, tags, fields, time.Now()); err == nil {
-		select {
-		case s.In <- p:
-		default:
-			if s.notifier != nil {
-				s.notifier.Notify(chanFullErr)
-			}
+	select {
+	case s.In <- &point{name, tags, fields, time.Now()}:
+	default:
+		if s.notifier != nil {
+			s.notifier.Notify(chanFullErr)
 		}
-	} else if s.notifier != nil {
-		s.notifier.Notify(err)
 	}
+
 }
 
-func (s *InfluxDBSink) send(batch *client.BatchPoints) {
+func (s *InfluxDBSink) sendBatch(batch *client.BatchPoints) {
 	if s.client == nil || len((*batch).Points()) == 0 {
 		return
 	}
-	if _, _, err := (*s.client).Ping(time.Second); err != nil {
+	if _, _, err := s.client.Ping(time.Second); err != nil {
 		s.connect()
 	}
-	if err := (*s.client).Write(*batch); err != nil {
+	if err := s.client.Write(*batch); err != nil {
 		if s.notifier != nil {
 			s.notifier.Notify(err)
 		}
@@ -113,51 +131,92 @@ func (s *InfluxDBSink) connect() {
 		s.notifier.Notify(err)
 	}
 	if err == nil {
-		s.client = &conn
+		s.client = conn
 	}
-}
-
-func (s *InfluxDBSink) createBatch() client.BatchPoints {
-	b, _ := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:  s.db,
-		Precision: s.precision,
-	})
-	return b
 }
 
 func (s *InfluxDBSink) spawnWorker() {
 	w := worker{
-		sink: s,
-		swTick: time.Tick(ticker),
-		batch: s.createBatch(),
+		sink:     s,
+		swTick:   time.Tick(ticker),
+		aggBatch: make(pointsBatch),
 	}
-
 	go w.process()
 }
 
 type worker struct {
-	sink    *InfluxDBSink
-	swTick  <-chan time.Time
-	batch   client.BatchPoints
+	sink     *InfluxDBSink
+	swTick   <-chan time.Time
+	aggBatch pointsBatch
+	batch    []*client.Point
 }
 
 func (w *worker) process() {
 	for {
 		select {
 		case <-w.swTick:
-			w.send()
+			w.sendBatch()
 		case point := <-w.sink.In:
-			w.batch.AddPoint(point)
+			if !point.canAggregate() {
+				if clientPoint, err := point.makePoint(); err != nil {
+					w.sink.notifier.Notify(err)
+				} else {
+					w.batch = append(w.batch, clientPoint)
+				}
+				continue
+			}
+			increment(w.aggBatch, point)
 		}
 	}
 }
 
-func (w *worker) send() {
-	toSend := w.batch
-	w.batch = w.sink.createBatch()
-	go w.sink.send(&toSend)
+func increment(batch pointsBatch, point *point) {
+	key := tagsToKey(point.tags)
+	if existingPoint, ok := batch[key]; ok {
+		for fk, v := range point.fields {
+			if existingValue, ok := existingPoint.fields[fk]; ok {
+				existingPoint.fields[fk] = existingValue.(int) + v.(int)
+			} else {
+				existingPoint.fields[fk] = v.(int)
+			}
+		}
+	} else {
+		batch[key] = point
+	}
 }
 
+func tagsToKey(tags map[string]string) string {
+	ks := make([]string, len(tags))
+	for k := range tags {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	var buff bytes.Buffer
+	for _, k := range ks {
+		buff.WriteString(k)
+		buff.WriteString(tags[k])
+	}
+	return buff.String()
+}
+
+func (w *worker) sendBatch() {
+	toSend := w.aggBatch
+	w.aggBatch = make(pointsBatch)
+	b, _ := client.NewBatchPoints(client.BatchPointsConfig{
+		Database:  w.sink.db,
+		Precision: w.sink.precision,
+	})
+	b.AddPoints(w.batch)
+	for k := range toSend {
+		point, err := toSend[k].makePoint()
+		if err == nil {
+			b.AddPoint(point)
+		} else {
+			w.sink.notifier.Notify(err)
+		}
+	}
+	go w.sink.sendBatch(&b)
+}
 
 func SetupInfluxDBSink(db, dbHost, hostname, precision string, notifier Notifier, workers int) *InfluxDBSink {
 	if dbHost == "" {
@@ -170,7 +229,7 @@ func SetupInfluxDBSink(db, dbHost, hostname, precision string, notifier Notifier
 		db:        db, // note: if using UDP the database is configured by the UDP service
 		precision: precision,
 		notifier:  notifier,
-		In:        make(chan *client.Point, bufferSize),
+		In:        make(chan *point, bufferSize),
 	}
 
 	s.connect()
