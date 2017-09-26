@@ -32,12 +32,14 @@ func (s *healthdStatus) FmtStatus() string {
 	}
 }
 
+var isDarkBackground bool
 var sourceHostPort string
 
 func main() {
 	var cmdRoot = &cobra.Command{
 		Use: "healthtop [command]",
 	}
+	cmdRoot.PersistentFlags().BoolVar(&isDarkBackground, "dark", false, "set the default font color to white for terminal with dark background")
 	cmdRoot.PersistentFlags().StringVar(&sourceHostPort, "source", "localhost:5032", "source is the host:port of the healthd to query. ex: localhost:5031")
 
 	var sort string
