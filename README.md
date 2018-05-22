@@ -104,7 +104,7 @@ Within jobs, you can emit events, timings, gauges, and errors. The first argumen
 #### Events
 
 ```go
-// Events. Notice the camel case with dots.
+// Events. Notice the snake case with dots.
 // (This is helpful when you want to use StatsD sinks)
 job.Event("starting_server")
 job.Event("proccess_user.by_email.gmail")
@@ -148,7 +148,7 @@ job.TimingKv("fetch_user", time.Since(startTime).Nanoseconds(),
 // Gauges:
 job.Gauge("num_goroutines", numRunningGoroutines()) 
 
-// Timings also support keys/values:
+// Gauges also support keys/values:
 job.GaugeKv("num_goroutines", numRunningGoroutines(),
 	health.Kvs{"dispatcher": dispatcherStatus()})
 ```
@@ -194,7 +194,7 @@ if err != nil {
 }
 ```
 
-Since error handling is so prevalent in Go code, you'll have sitations where multiple functions have the option of loggin the same root error. The best practice that we've identified is to just not think about it and log it on every level of the call stack. Keep in mind that gocraft/health will handle this intelligently and only send one error to Bugsnag, have a correct root backtrace, and so on.
+Since error handling is so prevalent in Go code, you'll have situations where multiple functions have the option of logging the same root error. The best practice that we've identified is to just not think about it and log it on every level of the call stack. Keep in mind that gocraft/health will handle this intelligently and only send one error to Bugsnag, have a correct root backtrace, and so on.
 
 ```go
 func showUser(ctx *Context) error {
